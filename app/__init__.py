@@ -17,8 +17,9 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Register blueprints
-    from app.routes import main_bp
-    app.register_blueprint(main_bp)
+    # Register blueprints only if not testing
+    if not app.config.get('TESTING', False):
+        from app.routes import main_bp
+        app.register_blueprint(main_bp)
 
     return app 

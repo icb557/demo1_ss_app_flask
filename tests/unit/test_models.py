@@ -1,6 +1,6 @@
 """Unit tests for models."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models import User, Task, TravelDiary, Activity
 
 def test_new_user():
@@ -16,7 +16,7 @@ def test_new_task():
     task = Task(
         title='Test Task',
         description='Test Description',
-        due_date=datetime.utcnow(),
+        due_date=datetime.now(timezone.utc),
         category='personal',
         status='pending',
         user=user
@@ -41,8 +41,8 @@ def test_new_travel_diary():
     diary = TravelDiary(
         title='Trip to Barcelona',
         location='Barcelona, Spain',
-        start_date=datetime.utcnow(),
-        end_date=datetime.utcnow(),
+        start_date=datetime.now(timezone.utc),
+        end_date=datetime.now(timezone.utc),
         description='Amazing trip to Barcelona',
         user=user
     )
@@ -55,11 +55,14 @@ def test_new_travel_diary():
 
 def test_add_activity_to_diary():
     """Test adding an activity to a travel diary."""
-    diary = TravelDiary(title='Trip to Barcelona')
+    diary = TravelDiary(
+        title='Trip to Barcelona',
+        location='Barcelona, Spain'
+    )
     activity = Activity(
         title='Visit Sagrada Familia',
         description='Visit the famous church',
-        planned_date=datetime.utcnow(),
+        planned_date=datetime.now(timezone.utc),
         diary=diary
     )
     assert activity in diary.activities
@@ -68,7 +71,14 @@ def test_add_activity_to_diary():
 
 def test_activity_completion():
     """Test marking an activity as completed."""
-    activity = Activity(title='Visit Sagrada Familia')
+    diary = TravelDiary(
+        title='Trip to Barcelona',
+        location='Barcelona, Spain'
+    )
+    activity = Activity(
+        title='Visit Sagrada Familia',
+        diary=diary
+    )
     activity.mark_completed()
     assert activity.is_completed
     assert isinstance(activity.completed_at, datetime)
