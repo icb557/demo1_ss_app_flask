@@ -1,8 +1,12 @@
 """User model."""
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
+
+def get_utc_now():
+    """Get current UTC datetime."""
+    return datetime.now(timezone.utc)
 
 class User(db.Model):
     """User model class."""
@@ -13,8 +17,8 @@ class User(db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(128))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=get_utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=get_utc_now, onupdate=get_utc_now)
 
     def __init__(self, username, email, password=None):
         """Initialize user with basic data."""
@@ -22,6 +26,10 @@ class User(db.Model):
         self.email = self._validate_email(email)
         if password:
             self.password = password
+        
+        # Set timestamps
+        self.created_at = get_utc_now()
+        self.updated_at = self.created_at
 
     def __repr__(self):
         """Return string representation of user."""
@@ -47,4 +55,14 @@ class User(db.Model):
         email_regex = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
         if not email_regex.match(email):
             raise ValueError('Invalid email format')
-        return email 
+        return email
+
+    def to_dict(self):
+        """Convert user to dictionary."""
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        } 
