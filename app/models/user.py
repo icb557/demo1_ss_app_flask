@@ -9,7 +9,7 @@ def get_utc_now():
     return datetime.now(timezone.utc)
 
 class User(db.Model):
-    """User model class."""
+    """User model."""
     
     __tablename__ = 'users'
 
@@ -19,6 +19,10 @@ class User(db.Model):
     password_hash = db.Column(db.String(128))
     created_at = db.Column(db.DateTime(timezone=True), default=get_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), default=get_utc_now, onupdate=get_utc_now)
+
+    # Relationships
+    tasks = db.relationship('Task', back_populates='user', cascade='all, delete-orphan')
+    travel_diaries = db.relationship('TravelDiary', back_populates='user', cascade='all, delete-orphan')
 
     def __init__(self, username, email, password=None):
         """Initialize user with basic data."""
