@@ -6,6 +6,12 @@ def get_utc_now():
     """Get current UTC datetime."""
     return datetime.now(timezone.utc)
 
+def make_timezone_aware(dt):
+    """Make a datetime timezone aware if it isn't already."""
+    if dt and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
 class TravelDiary(db.Model):
     """Travel Diary model class."""
     
@@ -24,8 +30,8 @@ class TravelDiary(db.Model):
 
     # Relationships
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    user = db.relationship('User', backref=db.backref('travel_diaries', lazy=True))
-    activities = db.relationship('Activity', backref='diary', lazy=True, cascade='all, delete-orphan')
+    user = db.relationship('User', back_populates='travel_diaries')
+    activities = db.relationship('Activity', back_populates='diary', cascade='all, delete-orphan')
 
     def __init__(self, title=None, location=None, description='', start_date=None, end_date=None, user=None):
         """Initialize travel diary with basic data."""
@@ -42,18 +48,16 @@ class TravelDiary(db.Model):
         # Validate and set dates
         if start_date:
             # Ensure start_date is timezone aware
-            if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
+            start_date = make_timezone_aware(start_date)
             self.start_date = start_date
             
         if end_date:
             # Ensure end_date is timezone aware
-            if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
+            end_date = make_timezone_aware(end_date)
             self.end_date = end_date
 
-        if start_date and end_date and start_date > end_date:
-            raise ValueError('Start date must be before end date')
+        if start_date and end_date and end_date < start_date:
+            raise ValueError('End date cannot be before start date')
 
         # Set timestamps
         self.created_at = get_utc_now()
@@ -75,10 +79,10 @@ class TravelDiary(db.Model):
             'title': self.title,
             'location': self.location,
             'description': self.description,
-            'start_date': self.start_date.isoformat() if self.start_date else None,
-            'end_date': self.end_date.isoformat() if self.end_date else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'start_date': self.start_date.astimezone(timezone.utc).isoformat() if self.start_date else None,
+            'end_date': self.end_date.astimezone(timezone.utc).isoformat() if self.end_date else None,
+            'created_at': self.created_at.astimezone(timezone.utc).isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.astimezone(timezone.utc).isoformat() if self.updated_at else None,
             'user_id': self.user_id,
             'activities': [activity.to_dict() for activity in self.activities]
         } 
