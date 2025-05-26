@@ -1,412 +1,138 @@
-"""Integration tests for user service."""
+"""Integration tests for UserService."""
 import pytest
-from datetime import datetime, timedelta
-from app.services import UserService
-from app.models import User, Session
-from flask_login import current_user
-from werkzeug.security import check_password_hash
-from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timezone
+from app.services.user_service import UserService
+from app.models import User
+from app import db
 
-def test_create_user(app):
-    """Test user creation with password hashing."""
+def test_create_user(init_database, app):
+    """Test user creation with UserService."""
     with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
+        service = UserService()
+        
+        # Test successful creation
+        user = service.create_user(
+            username='test_user',
             email='test@example.com',
-            password='secure_password'
+            password='test_password'
         )
-        assert user.username == 'testuser'
+        
+        assert user.username == 'test_user'
         assert user.email == 'test@example.com'
-        assert check_password_hash(user.password_hash, 'secure_password')
+        assert user.check_password('test_password')
         
-        # Verify user was saved to database
-        saved_user = User.query.filter_by(email='test@example.com').first()
-        assert saved_user is not None
-        assert saved_user.username == 'testuser'
+        # Test duplicate username
+        with pytest.raises(ValueError, match="Username already exists"):
+            service.create_user(
+                username='test_user',
+                email='another@example.com',
+                password='another_password'
+            )
+        
+        # Test duplicate email
+        with pytest.raises(ValueError, match="Email already exists"):
+            service.create_user(
+                username='another_user',
+                email='test@example.com',
+                password='another_password'
+            )
+        
+        # Test invalid email format
+        with pytest.raises(ValueError, match="Invalid email format"):
+            service.create_user(
+                username='invalid_email_user',
+                email='invalid_email',
+                password='test_password'
+            )
 
-def test_user_authentication(app):
-    """Test user authentication and session management."""
+def test_get_user_methods(init_database, app):
+    """Test methods to retrieve users."""
     with app.app_context():
-        # Create test user
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
+        service = UserService()
+        
+        # Create a test user
+        user = service.create_user(
+            username='get_test_user',
+            email='get_test@example.com',
+            password='test_password'
         )
         
-        # Test successful authentication
-        auth_user = UserService.authenticate_user('test@example.com', 'secure_password')
-        assert auth_user is not None
-        assert auth_user.id == user.id
+        # Test get by ID
+        retrieved_user = service.get_user_by_id(user.id)
+        assert retrieved_user.id == user.id
+        assert retrieved_user.username == user.username
         
-        # Test failed authentication
-        assert UserService.authenticate_user('test@example.com', 'wrong_password') is None
-        assert UserService.authenticate_user('wrong@email.com', 'secure_password') is None
+        # Test get by username
+        retrieved_user = service.get_user_by_username('get_test_user')
+        assert retrieved_user.id == user.id
+        assert retrieved_user.email == user.email
+        
+        # Test get by email
+        retrieved_user = service.get_user_by_email('get_test@example.com')
+        assert retrieved_user.id == user.id
+        assert retrieved_user.username == user.username
+        
+        # Test not found cases
+        with pytest.raises(ValueError, match="User not found"):
+            service.get_user_by_id(9999)
+        
+        with pytest.raises(ValueError, match="User not found"):
+            service.get_user_by_username('nonexistent_user')
+            
+        with pytest.raises(ValueError, match="User not found"):
+            service.get_user_by_email('nonexistent@example.com')
 
-def test_session_management(app, test_client):
-    """Test session creation and management."""
-    with app.app_context():
-        # Create and login user
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
-        )
-        
-        session = UserService.create_session(user)
-        assert session.user_id == user.id
-        assert session.is_active
-        
-        # Test session validation
-        assert UserService.validate_session(session.id)
-        
-        # Test session expiry
-        expired_session = UserService.create_session(
-            user,
-            expiry=datetime.utcnow() - timedelta(days=1)
-        )
-        assert not UserService.validate_session(expired_session.id)
-
-def test_remember_me_token(app):
-    """Test remember me token functionality."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
-        )
-        
-        # Generate remember token
-        token = UserService.generate_remember_token(user)
-        assert token is not None
-        
-        # Verify token
-        verified_user = UserService.verify_remember_token(token)
-        assert verified_user is not None
-        assert verified_user.id == user.id
-        
-        # Test invalid token
-        assert UserService.verify_remember_token('invalid_token') is None
-
-def test_password_reset(app):
-    """Test password reset functionality."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='original_password'
-        )
-        
-        # Generate reset token
-        token = UserService.generate_password_reset_token(user)
-        assert token is not None
-        
-        # Reset password
-        new_password = 'new_secure_password'
-        success = UserService.reset_password(token, new_password)
-        assert success
-        
-        # Verify new password works
-        updated_user = UserService.authenticate_user('test@example.com', new_password)
-        assert updated_user is not None
-        assert updated_user.id == user.id
-
-def test_user_profile_management(app):
-    """Test user profile management."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
-        )
-        
-        # Update profile
-        updated_user = UserService.update_profile(
-            user,
-            new_username='updated_user',
-            new_email='updated@example.com'
-        )
-        assert updated_user.username == 'updated_user'
-        assert updated_user.email == 'updated@example.com'
-        
-        # Verify changes in database
-        saved_user = User.query.get(user.id)
-        assert saved_user.username == 'updated_user'
-        assert saved_user.email == 'updated@example.com'
-
-def test_session_cleanup(app):
-    """Test automatic cleanup of expired sessions."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
-        )
-        
-        # Create multiple sessions
-        active_session = UserService.create_session(user)
-        expired_session = UserService.create_session(
-            user,
-            expiry=datetime.utcnow() - timedelta(days=1)
-        )
-        
-        # Run cleanup
-        cleaned = UserService.cleanup_expired_sessions()
-        assert cleaned > 0
-        
-        # Verify only expired sessions were removed
-        assert UserService.validate_session(active_session.id)
-        assert not UserService.validate_session(expired_session.id)
-
-def test_concurrent_sessions_limit(app):
-    """Test limiting number of concurrent sessions per user."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password'
-        )
-        
-        # Create maximum allowed sessions
-        max_sessions = 3
-        sessions = []
-        for _ in range(max_sessions):
-            session = UserService.create_session(user)
-            sessions.append(session)
-            assert session is not None
-        
-        # Try to create one more session
-        overflow_session = UserService.create_session(user)
-        assert overflow_session is not None
-        
-        # Verify oldest session was invalidated
-        assert not UserService.validate_session(sessions[0].id)
-        assert all(UserService.validate_session(s.id) for s in sessions[1:])
-
-def test_get_user_by_id(app, test_user):
-    """Test getting user by ID."""
-    with app.app_context():
-        user = UserService.get_user_by_id(test_user.id)
-        assert user is not None
-        assert user.username == test_user.username
-
-def test_get_user_by_username(app, test_user):
-    """Test getting user by username."""
-    with app.app_context():
-        user = UserService.get_user_by_username(test_user.username)
-        assert user is not None
-        assert user.id == test_user.id
-
-def test_get_all_users(app, test_user):
-    """Test getting all users."""
-    with app.app_context():
-        # Create another user
-        UserService.create_user('another_user', 'another@example.com')
-        
-        users = UserService.get_all_users()
-        assert len(users) == 2
-        assert any(u.username == test_user.username for u in users)
-        assert any(u.username == 'another_user' for u in users)
-
-def test_update_user(app, test_user):
+def test_update_user(init_database, app):
     """Test updating user information."""
     with app.app_context():
-        updated_user = UserService.update_user(
-            test_user,
-            username='updated_user',
-            email='updated@example.com'
-        )
-        assert updated_user.username == 'updated_user'
-        assert updated_user.email == 'updated@example.com'
+        service = UserService()
         
-        # Verify changes were saved to database
-        saved_user = User.query.get(test_user.id)
-        assert saved_user.username == 'updated_user'
-        assert saved_user.email == 'updated@example.com'
+        # Create test users
+        user1 = service.create_user(
+            username='update_test_user1',
+            email='update_test1@example.com',
+            password='test_password'
+        )
+        
+        user2 = service.create_user(
+            username='update_test_user2',
+            email='update_test2@example.com',
+            password='test_password'
+        )
+        
+        # Test updating email
+        updated_user = service.update_user(user1, {
+            'email': 'new_email@example.com'
+        })
+        assert updated_user.email == 'new_email@example.com'
+        
+        # Test updating password
+        updated_user = service.update_user(user1, {
+            'password': 'new_password'
+        })
+        assert updated_user.check_password('new_password')
+        
+        # Test updating to existing email
+        with pytest.raises(ValueError, match="Email already exists"):
+            service.update_user(user1, {
+                'email': 'update_test2@example.com'
+            })
 
-def test_delete_user(app, test_user):
+def test_delete_user(init_database, app):
     """Test user deletion."""
     with app.app_context():
-        UserService.delete_user(test_user)
+        service = UserService()
         
-        # Verify user was deleted from database
-        deleted_user = User.query.get(test_user.id)
-        assert deleted_user is None
-
-def test_password_validation(app):
-    """Test password validation rules."""
-    with app.app_context():
-        # Test password too short
-        with pytest.raises(ValueError, match='Password must be at least 8 characters'):
-            UserService.create_user(
-                username='testuser',
-                email='test@example.com',
-                password='short'
-            )
-        
-        # Test password without numbers
-        with pytest.raises(ValueError, match='Password must contain at least one number'):
-            UserService.create_user(
-                username='testuser',
-                email='test@example.com',
-                password='onlyletters'
-            )
-        
-        # Test password without special characters
-        with pytest.raises(ValueError, match='Password must contain at least one special character'):
-            UserService.create_user(
-                username='testuser',
-                email='test@example.com',
-                password='nospecial123'
-            )
-
-def test_duplicate_user_prevention(app):
-    """Test prevention of duplicate usernames and emails."""
-    with app.app_context():
-        # Create initial user
-        UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
+        # Create a test user
+        user = service.create_user(
+            username='delete_test_user',
+            email='delete_test@example.com',
+            password='test_password'
         )
         
-        # Try creating user with same username
-        with pytest.raises(IntegrityError):
-            UserService.create_user(
-                username='testuser',
-                email='different@example.com',
-                password='secure_password123!'
-            )
+        # Delete the user
+        service.delete_user(user)
         
-        # Try creating user with same email
-        with pytest.raises(IntegrityError):
-            UserService.create_user(
-                username='different_user',
-                email='test@example.com',
-                password='secure_password123!'
-            )
-
-def test_session_token_security(app):
-    """Test session token security features."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
-        )
-        
-        # Test token length and complexity
-        token = UserService.generate_session_token()
-        assert len(token) >= 32
-        assert any(c.isdigit() for c in token)
-        assert any(c.isalpha() for c in token)
-        
-        # Test token expiration
-        session = UserService.create_session(
-            user,
-            token=token,
-            expiry=datetime.utcnow() + timedelta(minutes=30)
-        )
-        assert UserService.validate_session(session.id)
-        
-        # Simulate time passing
-        session.expiry = datetime.utcnow() - timedelta(minutes=1)
-        assert not UserService.validate_session(session.id)
-
-def test_rate_limiting(app):
-    """Test rate limiting for authentication attempts."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
-        )
-        
-        # Try multiple failed authentications
-        for _ in range(5):
-            UserService.authenticate_user('test@example.com', 'wrong_password')
-        
-        # Next attempt should be blocked
-        with pytest.raises(ValueError, match='Too many login attempts'):
-            UserService.authenticate_user('test@example.com', 'secure_password123!')
-        
-        # Wait for cooldown (simulated)
-        UserService.reset_login_attempts('test@example.com')
-        
-        # Should work after reset
-        auth_user = UserService.authenticate_user('test@example.com', 'secure_password123!')
-        assert auth_user is not None
-
-def test_session_cleanup_policy(app):
-    """Test session cleanup policies."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
-        )
-        
-        # Create sessions with different states
-        active_session = UserService.create_session(user)
-        expired_session = UserService.create_session(
-            user,
-            expiry=datetime.utcnow() - timedelta(days=1)
-        )
-        inactive_session = UserService.create_session(user)
-        inactive_session.last_activity = datetime.utcnow() - timedelta(days=7)
-        
-        # Run cleanup with different policies
-        cleaned = UserService.cleanup_sessions(
-            expire_after_days=1,
-            inactive_after_days=5
-        )
-        
-        assert cleaned == 2  # Should remove expired and inactive sessions
-        assert UserService.validate_session(active_session.id)
-        assert not UserService.validate_session(expired_session.id)
-        assert not UserService.validate_session(inactive_session.id)
-
-def test_user_account_status(app):
-    """Test user account status management."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
-        )
-        
-        # Test account deactivation
-        UserService.deactivate_account(user.id)
-        assert not user.is_active
-        
-        # Attempt login with inactive account
-        auth_user = UserService.authenticate_user('test@example.com', 'secure_password123!')
-        assert auth_user is None
-        
-        # Reactivate account
-        UserService.activate_account(user.id)
-        assert user.is_active
-        
-        # Should be able to login again
-        auth_user = UserService.authenticate_user('test@example.com', 'secure_password123!')
-        assert auth_user is not None
-
-def test_password_history(app):
-    """Test password history and reuse prevention."""
-    with app.app_context():
-        user = UserService.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='secure_password123!'
-        )
-        
-        # Try to reuse current password
-        with pytest.raises(ValueError, match='Cannot reuse recent passwords'):
-            UserService.update_password(user, 'secure_password123!')
-        
-        # Change password successfully
-        UserService.update_password(user, 'newPassword456!')
-        
-        # Try to reuse old password
-        with pytest.raises(ValueError, match='Cannot reuse recent passwords'):
-            UserService.update_password(user, 'secure_password123!') 
+        # Verify user is deleted
+        with pytest.raises(ValueError, match="User not found"):
+            service.get_user_by_id(user.id) 

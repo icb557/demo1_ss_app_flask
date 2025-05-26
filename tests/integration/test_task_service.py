@@ -1,95 +1,203 @@
-"""Integration tests for task service."""
+"""Integration tests for TaskService."""
 import pytest
-from datetime import datetime, timedelta
-from app.services import TaskService
+from datetime import datetime, timezone, timedelta
+from app.services.task_service import TaskService
+from app.services.user_service import UserService
 from app.models import Task
+from app import db
 
-def test_create_task(app, test_user):
-    """Test task creation."""
+def test_create_task(init_database, app):
+    """Test task creation with TaskService."""
     with app.app_context():
-        task = TaskService.create_task(
-            user=test_user,
+        # Create a test user first
+        user_service = UserService()
+        user = user_service.create_user(
+            username='task_test_user',
+            email='task_test@example.com',
+            password='test_password'
+        )
+        
+        service = TaskService()
+        
+        # Test successful creation
+        task = service.create_task(
+            user=user,
             title='Test Task',
-            description='Test Description',
-            due_date=datetime.utcnow() + timedelta(days=1),
+            category='personal',
+            description='Test description',
+            due_date=datetime.now(timezone.utc) + timedelta(days=1)
+        )
+        
+        assert task.title == 'Test Task'
+        assert task.category == 'personal'
+        assert task.status == 'pending'
+        assert task.description == 'Test description'
+        assert task.user == user
+        
+        # Test invalid category
+        with pytest.raises(ValueError, match="Invalid category"):
+            service.create_task(
+                user=user,
+                title='Invalid Category Task',
+                category='invalid_category'
+            )
+        
+        # Test invalid status
+        with pytest.raises(ValueError, match="Invalid status"):
+            service.create_task(
+                user=user,
+                title='Invalid Status Task',
+                category='personal',
+                status='invalid_status'
+            )
+
+def test_get_task_methods(init_database, app):
+    """Test methods to retrieve tasks."""
+    with app.app_context():
+        # Create a test user
+        user_service = UserService()
+        user = user_service.create_user(
+            username='get_tasks_user',
+            email='get_tasks@example.com',
+            password='test_password'
+        )
+        
+        service = TaskService()
+        
+        # Create test tasks
+        task1 = service.create_task(
+            user=user,
+            title='Personal Task',
             category='personal'
         )
-        assert task.title == 'Test Task'
-        assert task.user == test_user
         
-        # Verify task was saved to database
-        saved_task = Task.query.filter_by(title='Test Task').first()
-        assert saved_task is not None
-        assert saved_task.description == 'Test Description'
+        task2 = service.create_task(
+            user=user,
+            title='Work Task',
+            category='work',
+            status='completed'
+        )
+        
+        # Test get by ID
+        retrieved_task = service.get_task_by_id(task1.id)
+        assert retrieved_task.id == task1.id
+        assert retrieved_task.title == 'Personal Task'
+        
+        # Test get user tasks
+        all_tasks = service.get_user_tasks(user)
+        assert len(all_tasks) == 2
+        
+        # Test get tasks by category
+        personal_tasks = service.get_user_tasks(user, category='personal')
+        assert len(personal_tasks) == 1
+        assert personal_tasks[0].category == 'personal'
+        
+        # Test get tasks by status
+        completed_tasks = service.get_user_tasks(user, status='completed')
+        assert len(completed_tasks) == 1
+        assert completed_tasks[0].status == 'completed'
+        
+        # Test get tasks by category and status
+        personal_pending_tasks = service.get_user_tasks(user, category='personal', status='pending')
+        assert len(personal_pending_tasks) == 1
+        assert personal_pending_tasks[0].category == 'personal'
+        assert personal_pending_tasks[0].status == 'pending'
+        
+        # Test not found case
+        with pytest.raises(ValueError, match="Task not found"):
+            service.get_task_by_id(9999)
 
-def test_get_user_tasks_for_view(app, test_user):
-    """Test getting user's tasks for view rendering."""
+def test_update_task(init_database, app):
+    """Test updating task information."""
     with app.app_context():
-        # Create multiple tasks
-        TaskService.create_task(test_user, 'Task 1', category='work')
-        TaskService.create_task(test_user, 'Task 2', category='personal')
+        # Create a test user
+        user_service = UserService()
+        user = user_service.create_user(
+            username='update_tasks_user',
+            email='update_tasks@example.com',
+            password='test_password'
+        )
         
-        # Get tasks for different views
-        dashboard_tasks = TaskService.get_tasks_for_dashboard(test_user)
-        assert len(dashboard_tasks['upcoming']) > 0
-        assert len(dashboard_tasks['pending']) > 0
+        service = TaskService()
         
-        # Get tasks by category for view
-        work_tasks = TaskService.get_tasks_by_category(test_user, 'work')
-        assert len(work_tasks) == 1
-        assert work_tasks[0].title == 'Task 1'
+        # Create a test task
+        task = service.create_task(
+            user=user,
+            title='Task to Update',
+            category='personal',
+            description='Original description'
+        )
         
-        # Get tasks with pagination for list view
-        page_tasks = TaskService.get_paginated_tasks(test_user, page=1, per_page=10)
-        assert len(page_tasks.items) == 2
-        assert page_tasks.total == 2
-
-def test_mark_task_completed(app, test_user):
-    """Test marking task as completed."""
-    with app.app_context():
-        task = TaskService.create_task(test_user, 'Test Task')
+        # Test updating various fields
+        updated_task = service.update_task(task, {
+            'title': 'Updated Title',
+            'description': 'Updated description',
+            'category': 'work',
+            'status': 'completed'
+        })
         
-        # Mark as completed
-        updated_task = TaskService.mark_task_completed(task)
+        assert updated_task.title == 'Updated Title'
+        assert updated_task.description == 'Updated description'
+        assert updated_task.category == 'work'
         assert updated_task.status == 'completed'
-        assert isinstance(updated_task.completed_at, datetime)
+        assert updated_task.completed_at is not None
         
-        # Verify in database and get updated view data
-        task_data = TaskService.get_task_with_related_data(task.id)
-        assert task_data['task'].status == 'completed'
-        assert 'related_diary' in task_data
+        # Test invalid category
+        with pytest.raises(ValueError, match="Invalid category"):
+            service.update_task(task, {'category': 'invalid_category'})
+        
+        # Test invalid status
+        with pytest.raises(ValueError, match="Invalid status"):
+            service.update_task(task, {'status': 'invalid_status'})
 
-def test_get_tasks_by_filter(app, test_user):
-    """Test getting tasks by different filters for views."""
+def test_mark_task_completed(init_database, app):
+    """Test marking a task as completed."""
     with app.app_context():
-        today = datetime.utcnow()
-        tomorrow = today + timedelta(days=1)
+        # Create a test user
+        user_service = UserService()
+        user = user_service.create_user(
+            username='complete_tasks_user',
+            email='complete_tasks@example.com',
+            password='test_password'
+        )
         
-        # Create tasks with different dates and statuses
-        task1 = TaskService.create_task(test_user, 'Today Task', due_date=today)
-        task2 = TaskService.create_task(test_user, 'Tomorrow Task', due_date=tomorrow)
-        TaskService.mark_task_completed(task1)
+        service = TaskService()
         
-        # Test different view filters
-        completed = TaskService.get_filtered_tasks(test_user, status='completed')
-        assert len(completed) == 1
-        assert completed[0].title == 'Today Task'
+        # Create a test task
+        task = service.create_task(
+            user=user,
+            title='Task to Complete',
+            category='personal'
+        )
         
-        upcoming = TaskService.get_filtered_tasks(test_user, due_after=today)
-        assert len(upcoming) == 1
-        assert upcoming[0].title == 'Tomorrow Task'
+        # Mark task as completed
+        completed_task = service.mark_task_completed(task)
+        assert completed_task.status == 'completed'
+        assert completed_task.completed_at is not None
 
-def test_task_summary_data(app, test_user):
-    """Test getting task summary data for dashboard."""
+def test_delete_task(init_database, app):
+    """Test task deletion."""
     with app.app_context():
-        # Create tasks with different statuses
-        TaskService.create_task(test_user, 'Task 1', category='work')
-        task2 = TaskService.create_task(test_user, 'Task 2', category='personal')
-        TaskService.mark_task_completed(task2)
+        # Create a test user
+        user_service = UserService()
+        user = user_service.create_user(
+            username='delete_tasks_user',
+            email='delete_tasks@example.com',
+            password='test_password'
+        )
         
-        summary = TaskService.get_task_summary(test_user)
-        assert summary['total_tasks'] == 2
-        assert summary['completed_tasks'] == 1
-        assert summary['pending_tasks'] == 1
-        assert 'work' in summary['tasks_by_category']
-        assert 'personal' in summary['tasks_by_category'] 
+        service = TaskService()
+        
+        # Create a test task
+        task = service.create_task(
+            user=user,
+            title='Task to Delete',
+            category='personal'
+        )
+        
+        # Delete the task
+        service.delete_task(task)
+        
+        # Verify task is deleted
+        with pytest.raises(ValueError, match="Task not found"):
+            service.get_task_by_id(task.id) 

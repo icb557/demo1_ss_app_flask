@@ -12,7 +12,7 @@ def get_utc_now():
     return datetime.now(timezone.utc)
 
 def make_timezone_aware(dt):
-    """Convert naive datetime to UTC timezone-aware datetime."""
+    """Make a datetime timezone aware if it isn't already."""
     if dt and dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
@@ -38,7 +38,7 @@ class Task(db.Model):
 
     # Relationships
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    user = db.relationship('User', backref=db.backref('tasks', lazy=True))
+    user = db.relationship('User', back_populates='tasks')
 
     def __init__(self, title=None, description='', due_date=None, category='general', 
                  priority='medium', status='pending', user=None):
