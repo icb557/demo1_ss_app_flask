@@ -7,7 +7,7 @@ from config import IntegrationTestingConfig
 @pytest.fixture
 def app():
     """Create application for the tests."""
-    app = create_app(TestingConfig)
+    app = create_app(IntegrationTestingConfig)
     return app
 
 @pytest.fixture
