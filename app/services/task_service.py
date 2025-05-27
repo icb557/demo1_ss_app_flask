@@ -69,31 +69,31 @@ class TaskService:
             raise ValueError("Task not found")
         return task
 
-    def get_user_tasks(self, user: User, category: Optional[str] = None, 
-                      status: Optional[str] = None) -> List[Task]:
-        """
-        Get all tasks for a user, optionally filtered by category and/or status.
-        
-        Args:
-            user: The user whose tasks to retrieve
-            category: Optional category to filter by
-            status: Optional status to filter by
-            
-        Returns:
-            List[Task]: List of tasks matching the criteria
-        """
+    def get_user_tasks(
+        self,
+        user: User,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+        limit: Optional[int] = None
+    ) -> List[Task]:
+        """Get tasks for a user with optional filters."""
         query = Task.query.filter_by(user=user)
         
-        if category:
-            if category not in self.VALID_CATEGORIES:
-                raise ValueError("Invalid category")
-            query = query.filter_by(category=category)
-            
         if status:
             if status not in self.VALID_STATUSES:
-                raise ValueError("Invalid status")
+                raise ValueError(f"Invalid status. Must be one of: {', '.join(self.VALID_STATUSES)}")
             query = query.filter_by(status=status)
             
+        if category:
+            if category not in self.VALID_CATEGORIES:
+                raise ValueError(f"Invalid category. Must be one of: {', '.join(self.VALID_CATEGORIES)}")
+            query = query.filter_by(category=category)
+        
+        query = query.order_by(Task.due_date.asc())
+        
+        if limit:
+            query = query.limit(limit)
+        
         return query.all()
 
     def update_task(self, task: Task, update_data: dict) -> Task:
