@@ -1,5 +1,5 @@
-# Use Python 3.13 slim image
-FROM python:3.13-slim
+# Use Python 3.11 slim image
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -12,15 +12,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         postgresql-client \
+        libpq-dev \
+        gcc \
+        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy wait-for-db script
-COPY scripts/wait-for-db.sh /usr/local/bin/wait-for-db.sh
-RUN chmod +x /usr/local/bin/wait-for-db.sh
+# Copy and prepare wait-for-db script
+COPY scripts/wait-for-db.sh /usr/local/bin/
+RUN sed -i 's/\r$//' /usr/local/bin/wait-for-db.sh && \
+    chmod +x /usr/local/bin/wait-for-db.sh
 
 # Copy project files
 COPY . .
@@ -29,4 +33,4 @@ COPY . .
 EXPOSE 5000
 
 # Command to run the application
-CMD ["wait-for-db.sh", "db", "flask", "run", "--host=0.0.0.0"] 
+CMD ["/usr/local/bin/wait-for-db.sh", "db", "flask", "run", "--host=0.0.0.0"] 
