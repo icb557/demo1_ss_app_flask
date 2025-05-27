@@ -22,15 +22,14 @@ def create_app(config_class=Config):
 
     # Configure login manager
     login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
+    login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'info'
 
-    # Register blueprints only if not testing
-    if not app.config.get('TESTING', False):
-        from app.routes import main_bp
-        from app.routes.auth import auth_bp
-        app.register_blueprint(main_bp)
-        app.register_blueprint(auth_bp, url_prefix='/auth')
+    # Register blueprints
+    from app.routes import main_bp
+    from app.routes.auth import auth_bp
+    app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
 
     # Load user loader function
     from app.models import User
