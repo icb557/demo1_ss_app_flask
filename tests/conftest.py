@@ -35,7 +35,8 @@ def test_user(init_database, app):
     with app.app_context():
         user = User(
             username='test_user',
-            email='test@example.com'
+            email='test@example.com',
+            password='password123'
         )
         db.session.add(user)
         db.session.commit()
