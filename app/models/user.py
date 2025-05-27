@@ -2,13 +2,14 @@
 from datetime import datetime, timezone
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 from app import db
 
 def get_utc_now():
     """Get current UTC datetime."""
     return datetime.now(timezone.utc)
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     """User model."""
     
     __tablename__ = 'users'
@@ -19,6 +20,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(256))
     created_at = db.Column(db.DateTime(timezone=True), default=get_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), default=get_utc_now, onupdate=get_utc_now)
+    active = db.Column(db.Boolean, default=True, nullable=False)
 
     # Relationships
     tasks = db.relationship('Task', back_populates='user', cascade='all, delete-orphan')
@@ -34,6 +36,7 @@ class User(db.Model):
         # Set timestamps
         self.created_at = get_utc_now()
         self.updated_at = self.created_at
+        self.active = True
 
     def __repr__(self):
         """Return string representation of user."""
@@ -51,6 +54,8 @@ class User(db.Model):
 
     def check_password(self, password):
         """Check if password matches."""
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
     @staticmethod
@@ -68,5 +73,26 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        } 
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'active': self.active
+        }
+
+    # Flask-Login interface methods
+    def get_id(self):
+        """Return the user ID as a unicode string."""
+        return str(self.id)
+
+    @property
+    def is_active(self):
+        """Return whether user is active."""
+        return self.active
+
+    @property
+    def is_authenticated(self):
+        """Return True if user is authenticated."""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """Return False as anonymous users are not supported."""
+        return False 
