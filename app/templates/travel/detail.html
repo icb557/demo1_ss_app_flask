@@ -1,0 +1,383 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ diary.title }} - Life Organizer{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if request.args.get('error') == 'complete' %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                Error al completar la actividad. Por favor, intenta de nuevo.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endif %}
+
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('main.travel') }}">
+                        <i class="fas fa-plane me-1"></i>Viajes
+                    </a>
+                </li>
+                <li class="breadcrumb-item active">{{ diary.title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Travel Details -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0">{{ diary.title }}</h2>
+            <div>
+                <button class="btn btn-light btn-sm add-activity" data-diary-id="{{ diary.id }}">
+                    <i class="fas fa-plus me-1"></i>Agregar Actividad
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-2">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    <strong>Ubicación:</strong> {{ diary.location }}
+                </p>
+                <p class="mb-2">
+                    <i class="fas fa-calendar me-2"></i>
+                    <strong>Fechas:</strong>
+                    {{ diary.start_date.strftime('%d/%m/%Y') }}
+                    {% if diary.end_date %}
+                    - {{ diary.end_date.strftime('%d/%m/%Y') }}
+                    {% endif %}
+                </p>
+                {% if diary.description %}
+                <p class="mb-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Descripción:</strong><br>
+                    {{ diary.description }}
+                </p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">Resumen</h5>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <h3 class="h2 mb-0">{{ diary.activities|length }}</h3>
+                                <small class="text-muted">Actividades</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="h2 mb-0">
+                                    {% set completed = diary.activities|selectattr('is_completed')|list|length %}
+                                    {{ completed }}
+                                </h3>
+                                <small class="text-muted">Completadas</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="h2 mb-0">${{ diary.activities|sum(attribute='cost')|default(0, true)|round(2) }}</h3>
+                                <small class="text-muted">Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activities Timeline -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="h5 mb-0">
+            <i class="fas fa-clock me-2"></i>Cronograma de Actividades
+        </h3>
+    </div>
+    <div class="card-body">
+        {% if diary.activities %}
+        <div class="timeline">
+            {% for activity in diary.activities|sort(attribute='planned_date') %}
+            <div class="timeline-item">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title mb-1">{{ activity.title }}</h5>
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-clock me-1"></i>
+                                    {{ activity.planned_date.strftime('%d/%m/%Y %H:%M') }}
+                                </p>
+                            </div>
+                            <div class="btn-group">
+                                {% if not activity.is_completed %}
+                                <button class="btn btn-success btn-sm complete-activity" data-activity-id="{{ activity.id }}">
+                                    <i class="fas fa-check me-1"></i>Completar
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-danger btn-sm delete-activity" data-activity-id="{{ activity.id }}">
+                                    <i class="fas fa-trash me-1"></i>Eliminar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {% if activity.location or activity.description or activity.cost %}
+                        <hr>
+                        {% endif %}
+                        
+                        {% if activity.location %}
+                        <p class="mb-2">
+                            <i class="fas fa-map-pin me-1"></i>
+                            {{ activity.location }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if activity.description %}
+                        <p class="mb-2">{{ activity.description }}</p>
+                        {% endif %}
+                        
+                        {% if activity.cost %}
+                        <p class="mb-2">
+                            <i class="fas fa-dollar-sign me-1"></i>
+                            Costo: ${{ activity.cost }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if activity.notes %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-sticky-note me-1"></i>
+                            {{ activity.notes }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if activity.is_completed %}
+                        <div class="alert alert-success mb-0 mt-3">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Completada
+                            {% if activity.completion_notes %}
+                            <br>
+                            <small>{{ activity.completion_notes }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>No hay actividades planificadas.
+            <br>
+            <button class="btn btn-primary btn-sm mt-2 add-activity" data-diary-id="{{ diary.id }}">
+                <i class="fas fa-plus me-1"></i>Agregar Actividad
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Complete Activity Modal -->
+<div class="modal fade" id="completeActivityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Completar Actividad</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="completeActivityForm" method="POST">
+                <input type="hidden" id="complete_activity_id" name="activity_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="completion_notes" class="form-label">Notas de Finalización</label>
+                        <textarea class="form-control" id="completion_notes" name="completion_notes" rows="3"
+                                placeholder="Opcional: Agrega notas sobre cómo fue la actividad..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Marcar como Completada</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- New Activity Modal -->
+<div class="modal fade" id="newActivityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nueva Actividad</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="newActivityForm" action="{{ url_for('main.create_activity', diary_id=diary.id) }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="activity_title" class="form-label">Título</label>
+                        <input type="text" class="form-control" id="activity_title" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activity_location" class="form-label">Ubicación</label>
+                        <input type="text" class="form-control" id="activity_location" name="location">
+                    </div>
+                    <div class="mb-3">
+                        <label for="activity_description" class="form-label">Descripción</label>
+                        <textarea class="form-control" id="activity_description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="planned_date" class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="planned_date" name="planned_date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="planned_time" class="form-label">Hora</label>
+                            <input type="time" class="form-control" id="planned_time" name="planned_time" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activity_cost" class="form-label">Costo</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="activity_cost" name="cost" step="0.01">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activity_notes" class="form-label">Notas Adicionales</label>
+                        <textarea class="form-control" id="activity_notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Actividad</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add Activity
+    document.querySelectorAll('.add-activity').forEach(button => {
+        button.addEventListener('click', function() {
+            new bootstrap.Modal(document.getElementById('newActivityModal')).show();
+        });
+    });
+
+    // Form submission handling
+    document.getElementById('newActivityForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+
+        fetch(this.action, {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                response.text().then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        alert(data.error || 'Error al crear la actividad. Por favor, intenta de nuevo.');
+                    } catch {
+                        alert('Error al crear la actividad. Por favor, intenta de nuevo.');
+                    }
+                });
+            }
+        }).catch(error => {
+            console.error('Error:', error);
+            alert('Error al crear la actividad. Por favor, intenta de nuevo.');
+        });
+    });
+
+    // Complete Activity
+    document.querySelectorAll('.complete-activity').forEach(button => {
+        button.addEventListener('click', function() {
+            const activityId = this.dataset.activityId;
+            document.getElementById('complete_activity_id').value = activityId;
+            new bootstrap.Modal(document.getElementById('completeActivityModal')).show();
+        });
+    });
+
+    // Complete Activity Form Submission
+    document.getElementById('completeActivityForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const activityId = document.getElementById('complete_activity_id').value;
+        const formData = new FormData(this);
+        
+        fetch(`/travel/activity/${activityId}/complete`, {
+            method: 'POST',
+            body: formData,
+            redirect: 'follow'
+        })
+        .then(response => {
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            window.location.reload();
+        });
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('completeActivityModal'));
+        if (modal) {
+            modal.hide();
+        }
+    });
+
+    // Delete Activity
+    document.querySelectorAll('.delete-activity').forEach(button => {
+        button.addEventListener('click', function() {
+            const activityId = this.dataset.activityId;
+            if (confirm('¿Estás seguro de que quieres eliminar esta actividad?')) {
+                fetch(`/travel/activity/${activityId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    });
+
+    // Date validation for new activity
+    const plannedDateInput = document.getElementById('planned_date');
+    plannedDateInput.addEventListener('change', function() {
+        const startDate = '{{ diary.start_date.strftime("%Y-%m-%d") }}';
+        const endDate = '{{ diary.end_date.strftime("%Y-%m-%d") if diary.end_date else "" }}';
+        
+        if (this.value < startDate) {
+            alert('La fecha de la actividad no puede ser anterior a la fecha de inicio del viaje.');
+            this.value = startDate;
+        }
+        
+        if (endDate && this.value > endDate) {
+            alert('La fecha de la actividad no puede ser posterior a la fecha de fin del viaje.');
+            this.value = endDate;
+        }
+    });
+});
+</script>
+{% endblock %} 
