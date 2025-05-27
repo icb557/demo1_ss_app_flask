@@ -6,15 +6,14 @@ from app import db
 
 def make_timezone_aware(dt: datetime) -> datetime:
     """Make a datetime timezone aware if it isn't already."""
-    if dt and dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 class TravelService:
     """Service class for handling travel diary operations."""
 
     def create_travel_diary(self, user: User, title: str, location: str,
-                          start_date: datetime, end_date: Optional[datetime] = None,
+                          start_date: Optional[datetime] = None,
+                          end_date: Optional[datetime] = None,
                           description: Optional[str] = None) -> TravelDiary:
         """
         Create a new travel diary.
@@ -33,9 +32,8 @@ class TravelService:
         Raises:
             ValueError: If end_date is before start_date
         """
-        # Ensure dates are timezone aware
-        start_date = make_timezone_aware(start_date)
-        if end_date:
+        if start_date and end_date:
+            start_date = make_timezone_aware(start_date)
             end_date = make_timezone_aware(end_date)
             if end_date < start_date:
                 raise ValueError("End date cannot be before start date")
