@@ -16,7 +16,8 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        docker-compose down --remove-orphans || true
+                        # Try both docker-compose and docker compose commands
+                        (docker-compose down --remove-orphans 2>/dev/null || docker compose down --remove-orphans 2>/dev/null || echo "No previous containers to stop")
                         docker system prune -f || true
                     '''
                 }
@@ -27,8 +28,17 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        docker-compose build --no-cache
-                        docker-compose up -d
+                        # Try both docker-compose and docker compose commands
+                        if command -v docker-compose >/dev/null 2>&1; then
+                            docker-compose build --no-cache
+                            docker-compose up -d
+                        elif docker compose version >/dev/null 2>&1; then
+                            docker compose build --no-cache
+                            docker compose up -d
+                        else
+                            echo "Neither docker-compose nor docker compose found!"
+                            exit 1
+                        fi
                     '''
                 }
             }
@@ -42,7 +52,7 @@ pipeline {
                         sleep 30
                         
                         # Check if web service is running
-                        if docker-compose ps web | grep -q "Up"; then
+                        if (docker-compose ps web 2>/dev/null || docker compose ps web 2>/dev/null) | grep -q "Up"; then
                             echo "Web service is running"
                         else
                             echo "Web service failed to start"
@@ -50,7 +60,7 @@ pipeline {
                         fi
                         
                         # Check if db service is running
-                        if docker-compose ps db | grep -q "Up"; then
+                        if (docker-compose ps db 2>/dev/null || docker compose ps db 2>/dev/null) | grep -q "Up"; then
                             echo "Database service is running"
                         else
                             echo "Database service failed to start"

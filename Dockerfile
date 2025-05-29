@@ -7,7 +7,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app.py
+    FLASK_APP=app:create_app
 
 # Install system dependencies
 RUN apt-get update \
