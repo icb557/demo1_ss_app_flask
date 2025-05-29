@@ -1,34 +1,102 @@
 pipeline {
     agent any
-
+    
+    environment {
+        COMPOSE_PROJECT_NAME = 'life-organizer'
+    }
+    
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
-        stage('Construir y levantar servicios') {
+        
+        stage('Stop Previous Containers') {
             steps {
-                sh 'docker compose down || true'  // || true evita fallos si no hay servicios
-                sh 'docker compose build'
-                sh 'docker compose up -d'
+                script {
+                    sh '''
+                        docker-compose down --remove-orphans || true
+                        docker system prune -f || true
+                    '''
+                }
             }
         }
-
-        stage('Ejecutar tests') {
+        
+        stage('Build and Deploy') {
+            steps {
+                script {
+                    sh '''
+                        docker-compose build --no-cache
+                        docker-compose up -d
+                    '''
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    sh '''
+                        echo "Waiting for services to be ready..."
+                        sleep 30
+                        
+                        # Check if web service is running
+                        if docker-compose ps web | grep -q "Up"; then
+                            echo "Web service is running"
+                        else
+                            echo "Web service failed to start"
+                            exit 1
+                        fi
+                        
+                        # Check if db service is running
+                        if docker-compose ps db | grep -q "Up"; then
+                            echo "Database service is running"
+                        else
+                            echo "Database service failed to start"
+                            exit 1
+                        fi
+                        
+                        # Optional: Test web endpoint
+                        curl -f http://localhost:5000 || echo "Web service not responding yet"
+                    '''
+                }
+            }
+        }
+        
+        stage('Show Running Services') {
             steps {
                 sh '''
-                    docker compose exec web python -m pytest || echo "Tests fallidos"
+                    echo "=== Running Containers ==="
+                    docker-compose ps
+                    echo "=== Container Logs ==="
+                    docker-compose logs --tail=20
                 '''
             }
         }
     }
-
+    
     post {
         always {
-            sh 'docker compose down || true'
-            cleanWs()
+            script {
+                sh '''
+                    echo "=== Final Container Status ==="
+                    docker-compose ps
+                '''
+            }
+        }
+        failure {
+            script {
+                sh '''
+                    echo "=== Error Logs ==="
+                    docker-compose logs
+                    echo "=== Cleaning up failed deployment ==="
+                    docker-compose down --remove-orphans
+                '''
+            }
+        }
+        success {
+            echo 'Deployment successful! Application is running on http://localhost:5000'
         }
     }
 }
