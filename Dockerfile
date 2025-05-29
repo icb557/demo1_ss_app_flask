@@ -2,10 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    FLASK_APP=app.py
-
+# Instala dependencias del sistema
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         postgresql-client \
@@ -15,21 +12,22 @@ RUN apt-get update && \
         netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
 
+# Copia e instala dependencias de Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copia el script de espera
 COPY scripts/wait-for-db.sh /wait-for-db.sh
 RUN chmod +x /wait-for-db.sh
 
+# Copia la aplicación
 COPY . .
 
-EXPOSE 5000
-
-# Entrypoint mejorado para migraciones
+# Configura entrypoint para tu estructura
 RUN echo '#!/bin/sh\n\
 set -e\n\
 /wait-for-db.sh db 5432\n\
-if [ ! -d "/app/migrations" ]; then\n\
+if [ ! -d "migrations" ]; then\n\
   echo "Initializing migrations..."\n\
   flask db init\n\
 fi\n\

@@ -1,3 +1,4 @@
+#__init__.py
 """Flask application initialization."""
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy

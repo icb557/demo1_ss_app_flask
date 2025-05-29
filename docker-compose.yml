@@ -5,33 +5,30 @@ services:
     build: .
     ports:
       - "5000:5000"
-    volumes:
-      - .:/app
     environment:
-      - FLASK_APP=app.py
-      - FLASK_ENV=development
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - FLASK_APP=app/__init__.py
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME=life_organizer
+      - DB_NAME=${DB_NAME:-life_organizer}
     depends_on:
       db:
         condition: service_healthy
 
   db:
     image: postgres:17.5
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=life_organizer
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-life_organizer}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d life_organizer"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
   postgres_data:
