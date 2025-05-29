@@ -4,7 +4,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app
+    FLASK_APP=app/__init__.py
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
