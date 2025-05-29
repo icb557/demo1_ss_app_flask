@@ -36,6 +36,7 @@ EXPOSE 5000
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
 set -e\n\
+export FLASK_APP=app:create_app<\
 if [ ! -d "/app/migrations" ]; then\n\
   echo "Initializing migrations..."\n\
   flask db init\n\
