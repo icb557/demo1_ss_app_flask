@@ -2,40 +2,37 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instala dependencias del sistema
+# Instalar dependencias del sistema
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         postgresql-client \
-        libpq-dev \
-        gcc \
-        python3-dev \
-        netcat-openbsd && \
+        libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia e instala dependencias de Python
+# Copiar e instalar dependencias de Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia el script de espera
-COPY scripts/wait-for-db.sh /wait-for-db.sh
-RUN chmod +x /wait-for-db.sh
+# Copiar script de espera para PostgreSQL
+COPY scripts/wait-for-db.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/wait-for-db.sh
 
-# Copia la aplicación
+# Copiar aplicación
 COPY . .
 
-# Configura entrypoint para tu estructura
-RUN echo '#!/bin/sh\n\
-set -e\n\
-/wait-for-db.sh db 5432\n\
-if [ ! -d "migrations" ]; then\n\
-  echo "Initializing migrations..."\n\
-  flask db init\n\
-fi\n\
-echo "Running migrations..."\n\
-flask db migrate\n\
-flask db upgrade\n\
-exec "$@"' > /usr/local/bin/entrypoint.sh && \
-    chmod +x /usr/local/bin/entrypoint.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Comando de inicio integrado (sin entrypoint separado)
+CMD /bin/sh -c '\
+    echo "=== Esperando a PostgreSQL ===" && \
+    until pg_isready -h db -p 5432 -U postgres; do \
+        echo "PostgreSQL is unavailable - sleeping"; \
+        sleep 2; \
+    done && \
+    echo "=== PostgreSQL está listo ===" && \
+    echo "=== Configurando migraciones ===" && \
+    if [ ! -d "migrations" ]; then \
+        flask db init && \
+        flask db migrate -m "Initial migration"; \
+    fi && \
+    flask db upgrade && \
+    echo "=== Iniciando aplicación ===" && \
+    flask run --host=0.0.0.0'

@@ -7,11 +7,10 @@ services:
       - "5000:5000"
     environment:
       - FLASK_APP=app/__init__.py
-      - FLASK_ENV=production
-      - SECRET_KEY=${SECRET_KEY}
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=life_organizer
       - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-life_organizer}
     depends_on:
       db:
         condition: service_healthy
@@ -19,11 +18,11 @@ services:
   db:
     image: postgres:17.5
     environment:
-      - POSTGRES_USER=${DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
-      - POSTGRES_DB=${DB_NAME:-life_organizer}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: life_organizer
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10

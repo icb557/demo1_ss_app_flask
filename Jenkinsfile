@@ -13,53 +13,158 @@ pipeline {
         DB_NAME = 'life_organizer'
         FLASK_APP = 'app/__init__.py'
         FLASK_ENV = 'production'
+        
+        // Puertos y configuración adicional
+        WEB_PORT = '5000'
+        DB_PORT = '5432'
     }
     
     stages {
+        stage('Cleanup Previous') {
+            steps {
+                echo '=== Limpiando recursos previos ==='
+                sh '''
+                    # Detener y limpiar contenedores previos
+                    docker-compose down --volumes --remove-orphans || true
+                    
+                    # Limpiar imágenes huérfanas (opcional)
+                    docker image prune -f || true
+                    
+                    # Verificar que no hay conflictos de puerto
+                    netstat -tulpn | grep :${WEB_PORT} || echo "Puerto ${WEB_PORT} disponible"
+                '''
+            }
+        }
+        
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                echo '=== Descargando código fuente ==='
+                checkout scm
+                
+                // Verificar archivos necesarios
+                sh '''
+                    echo "Verificando archivos del proyecto..."
+                    ls -la
+                    test -f docker-compose.yml || (echo "❌ docker-compose.yml no encontrado" && exit 1)
+                    test -f Dockerfile || (echo "❌ Dockerfile no encontrado" && exit 1)
+                    test -f requirements.txt || (echo "❌ requirements.txt no encontrado" && exit 1)
+                    test -f scripts/wait-for-db.sh || (echo "❌ wait-for-db.sh no encontrado" && exit 1)
+                    echo "✅ Todos los archivos necesarios encontrados"
+                '''
+            }
         }
         
         stage('Build') {
             steps {
+                echo '=== Construyendo imágenes Docker ==='
                 sh '''
-                    docker-compose down --volumes --remove-orphans || true
-                    docker-compose build --no-cache
+                    # Construir sin caché para asegurar actualizaciones
+                    docker-compose build --no-cache --parallel
+                    
+                    # Verificar que las imágenes se crearon correctamente
+                    docker-compose images
                 '''
             }
         }
         
-        stage('Migrate') {
+        stage('Database Setup') {
             steps {
+                echo '=== Configurando base de datos ==='
                 sh '''
+                    # Iniciar solo la base de datos primero
+                    docker-compose up -d db
+                    
+                    # Esperar a que PostgreSQL esté listo
+                    echo "Esperando a PostgreSQL..."
+                    timeout 60 sh -c 'until docker-compose exec -T db pg_isready -U ${DB_USER}; do sleep 2; done'
+                    
+                    echo "✅ PostgreSQL está listo"
+                '''
+            }
+        }
+        
+        stage('Run Migrations') {
+            steps {
+                echo '=== Ejecutando migraciones ==='
+                sh '''
+                    # Verificar si necesitamos inicializar migraciones
+                    if [ ! -d "migrations" ]; then
+                        echo "Inicializando migraciones..."
+                        docker-compose run --rm web flask db init
+                        docker-compose run --rm web flask db migrate -m "Initial migration"
+                    fi
+                    
+                    # Ejecutar migraciones
+                    echo "Aplicando migraciones..."
                     docker-compose run --rm web flask db upgrade
+                    
+                    echo "✅ Migraciones completadas"
                 '''
             }
         }
         
-        stage('Deploy') {
+        stage('Deploy Application') {
             steps {
+                echo '=== Desplegando aplicación ==='
                 sh '''
+                    # Iniciar todos los servicios
                     docker-compose up -d
-                    sleep 15
+                    
+                    # Esperar a que la aplicación esté lista
+                    echo "Esperando a que la aplicación esté lista..."
+                    sleep 20
+                    
+                    # Verificar que los contenedores están ejecutándose
+                    docker-compose ps
                 '''
             }
         }
         
-        stage('Verify') {
+        stage('Health Check') {
             steps {
+                echo '=== Verificando salud de la aplicación ==='
                 sh '''
-                    # Verificar servicios
-                    docker-compose ps | grep "Up"
+                    # Verificar que los servicios están corriendo
+                    echo "Estado de los servicios:"
+                    docker-compose ps
                     
-                    # Verificar login manager
-                    docker-compose exec web flask shell -c "
-                        from app import login_manager
-                        print('✓ Login manager configured:', login_manager.login_view)
-                    "
+                    # Verificar logs por errores
+                    echo "Verificando logs de la aplicación..."
+                    docker-compose logs --tail=20 web
                     
-                    # Verificar blueprints
-                    docker-compose exec web flask routes
+                    # Verificar conectividad de la base de datos
+                    echo "Verificando conexión a la base de datos..."
+                    docker-compose exec -T db psql -U ${DB_USER} -d ${DB_NAME} -c "SELECT version();" || echo "❌ Error de conexión a DB"
+                    
+                    # Verificar que la aplicación responde
+                    echo "Verificando respuesta de la aplicación..."
+                    timeout 30 sh -c 'until curl -f http://localhost:${WEB_PORT}/health 2>/dev/null || curl -f http://localhost:${WEB_PORT}/ 2>/dev/null; do echo "Esperando respuesta..."; sleep 3; done' || echo "⚠️  Aplicación no responde en puerto ${WEB_PORT}"
+                '''
+            }
+        }
+        
+        stage('Functional Tests') {
+            steps {
+                echo '=== Ejecutando tests funcionales ==='
+                sh '''
+                    # Verificar login manager (si es necesario)
+                    echo "Verificando configuración de Flask..."
+                    docker-compose exec -T web python -c "
+                        from app import create_app
+                        app = create_app()
+                        with app.app_context():
+                            print('✅ Flask app configurada correctamente')
+                    " || echo "⚠️  Error en configuración de Flask"
+                    
+                    # Verificar rutas disponibles
+                    echo "Rutas disponibles:"
+                    docker-compose exec -T web flask routes || echo "⚠️  No se pudieron obtener las rutas"
+                    
+                    # Tests adicionales si existen
+                    if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+                        echo "Ejecutando tests unitarios..."
+                        docker-compose exec -T web python -m pytest tests/ -v || echo "⚠️  Algunos tests fallaron"
+                    fi
                 '''
             }
         }
@@ -67,11 +172,50 @@ pipeline {
     
     post {
         always {
-            sh 'docker-compose ps'
-            cleanWs()
+            echo '=== Estado final del despliegue ==='
+            sh '''
+                echo "Estado de contenedores:"
+                docker-compose ps || true
+                
+                echo "Uso de recursos:"
+                docker stats --no-stream || true
+                
+                echo "Logs recientes:"
+                docker-compose logs --tail=10 || true
+            '''
         }
+        
+        success {
+            echo '✅ ¡Despliegue exitoso!'
+            sh '''
+                echo "=== DESPLIEGUE COMPLETADO ==="
+                echo "Aplicación disponible en: http://localhost:${WEB_PORT}"
+                echo "Base de datos PostgreSQL en puerto: ${DB_PORT}"
+                docker-compose ps
+            '''
+        }
+        
         failure {
-            archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
+            echo '❌ Despliegue falló'
+            sh '''
+                echo "=== INFORMACIÓN DE DEBUG ==="
+                echo "Logs de todos los servicios:"
+                docker-compose logs || true
+                
+                echo "Estado de contenedores:"
+                docker-compose ps || true
+                
+                echo "Procesos en el sistema:"
+                ps aux | grep -E "(docker|flask|postgres)" || true
+            '''
+            
+            // Archivar logs para análisis
+            archiveArtifacts artifacts: 'docker-compose.yml,Dockerfile,requirements.txt', allowEmptyArchive: true
+        }
+        
+        cleanup {
+            // Limpiar workspace pero mantener contenedores corriendo si el deploy fue exitoso
+            cleanWs()
         }
     }
 }

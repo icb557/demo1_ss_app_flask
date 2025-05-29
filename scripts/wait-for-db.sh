@@ -1,16 +1,16 @@
 #!/bin/bash
-# wait-for-db.sh (versión sin netcat)
+# wait-for-db.sh - Wait for PostgreSQL to be ready
 
 set -e
 
 host="$1"
 port="$2"
-shift 2
-cmd="$@"
 
-until (echo > /dev/tcp/$host/$port) >/dev/null 2>&1; do
-  echo "Waiting for $host:$port..."
+echo "Waiting for PostgreSQL at $host:$port..."
+
+until pg_isready -h "$host" -p "$port"; do
+  echo "PostgreSQL is unavailable - sleeping"
   sleep 2
 done
 
-exec $cmd
+echo "PostgreSQL is up and ready!"
