@@ -1,112 +1,162 @@
 pipeline {
     agent any
-    
+
     environment {
         COMPOSE_PROJECT_NAME = 'life-organizer'
     }
-    
+
     stages {
-        stage('Checkout') {
+        stage('Setup Environment') {
             steps {
-                checkout scm
+                script {
+                    sh '''
+                        echo "=== Environment Setup ==="
+                        echo "Current user: $(whoami)"
+                        echo "Working directory: $(pwd)"
+
+                        if ! command -v docker-compose &> /dev/null; then
+                            echo "Installing Docker Compose..."
+                            curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+                            chmod +x /usr/local/bin/docker-compose
+                            ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+                        fi
+
+                        chmod 666 /var/run/docker.sock || echo "Could not change socket permissions"
+
+                        echo "Testing Docker access..."
+                        docker version || echo "Docker not accessible"
+                    '''
+                }
             }
         }
-        
+
+        stage('Checkout') {
+            steps {
+                echo "Code already checked out by SCM"
+                sh '''
+                    ls -la
+                    if [ -f "docker-compose.yml" ]; then
+                        cat docker-compose.yml
+                    fi
+                '''
+            }
+        }
+
         stage('Stop Previous Containers') {
             steps {
                 script {
                     sh '''
-                        # Try both docker-compose and docker compose commands
-                        (docker-compose down --remove-orphans 2>/dev/null || docker compose down --remove-orphans 2>/dev/null || echo "No previous containers to stop")
-                        docker system prune -f || true
+                        docker-compose down --remove-orphans 2>/dev/null || echo "No previous containers to stop"
+                        docker stop $(docker ps -q) 2>/dev/null || echo "No containers to stop"
+                        docker rm $(docker ps -aq) 2>/dev/null || echo "No containers to remove"
                     '''
                 }
             }
         }
-        
+
         stage('Build and Deploy') {
             steps {
                 script {
                     sh '''
-                        # Try both docker-compose and docker compose commands
-                        if command -v docker-compose >/dev/null 2>&1; then
-                            docker-compose build --no-cache
-                            docker-compose up -d
-                        elif docker compose version >/dev/null 2>&1; then
-                            docker compose build --no-cache
-                            docker compose up -d
-                        else
-                            echo "Neither docker-compose nor docker compose found!"
-                            exit 1
-                        fi
+                        echo "Building and starting services..."
+                        docker-compose up -d --build
+                        sleep 10
                     '''
                 }
             }
         }
-        
+
+        stage('Run Migrations') {
+            steps {
+                script {
+                    sh '''
+                        echo "Running Flask database migrations..."
+
+                        # Esperar a que la base de datos esté lista
+                        docker-compose exec web /usr/local/bin/wait-for-db.sh db
+
+                        # Ejecutar migraciones aunque el directorio ya exista
+                        docker-compose exec web flask db migrate -m "auto migration" || echo "No changes detected"
+                        docker-compose exec web flask db upgrade
+                    '''
+                }
+            }
+        }
+
         stage('Health Check') {
             steps {
                 script {
                     sh '''
-                        echo "Waiting for services to be ready..."
-                        sleep 30
-                        
-                        # Check if web service is running
-                        if (docker-compose ps web 2>/dev/null || docker compose ps web 2>/dev/null) | grep -q "Up"; then
-                            echo "Web service is running"
+                        docker-compose ps
+
+                        if docker-compose ps | grep -q "Up"; then
+                            echo "✅ Services are running"
                         else
-                            echo "Web service failed to start"
+                            echo "❌ Services are not running properly"
+                            docker-compose logs
                             exit 1
                         fi
-                        
-                        # Check if db service is running
-                        if (docker-compose ps db 2>/dev/null || docker compose ps db 2>/dev/null) | grep -q "Up"; then
-                            echo "Database service is running"
-                        else
-                            echo "Database service failed to start"
-                            exit 1
-                        fi
-                        
-                        # Optional: Test web endpoint
-                        curl -f http://localhost:5000 || echo "Web service not responding yet"
+
+                        echo "Testing web endpoint..."
+                        for i in {1..5}; do
+                            if curl -f -s http://localhost:5000; then
+                                echo "✅ Web service is responding"
+                                break
+                            else
+                                echo "Attempt $i: Waiting for web service..."
+                                sleep 5
+                            fi
+                        done
                     '''
                 }
             }
         }
-        
-        stage('Show Running Services') {
+
+        stage('Show Results') {
             steps {
                 sh '''
-                    echo "=== Running Containers ==="
+                    echo "=== Deployment Results ==="
                     docker-compose ps
-                    echo "=== Container Logs ==="
-                    docker-compose logs --tail=20
+                    docker-compose logs --tail=10
+                    df -h
+                    free -h
                 '''
             }
         }
     }
-    
+
     post {
         always {
             script {
                 sh '''
-                    echo "=== Final Container Status ==="
-                    docker-compose ps
+                    echo "=== Final Status ==="
+                    docker-compose ps || echo "Could not get container status"
+                    ls -la /var/run/docker.sock
                 '''
             }
         }
         failure {
             script {
                 sh '''
-                    echo "=== Error Logs ==="
-                    docker-compose logs
-                    echo "=== Cleaning up failed deployment ==="
-                    docker-compose down --remove-orphans
+                    echo "=== FAILURE DEBUG INFO ==="
+                    docker --version || echo "Docker not working"
+                    docker-compose logs || echo "Could not get logs"
+                    docker-compose down || echo "Could not stop containers"
                 '''
             }
         }
         success {
-            echo 'Deployment successful! Application is running on http://localhost:5000'
+            echo '''
+            🎉 Pipeline completed successfully!
+
+            Application should be available at:
+            http://localhost:5000
+
+            Commands to manage the deployment:
+            - docker-compose ps
+            - docker-compose logs
+            - docker-compose down
+            '''
         }
     }
 }

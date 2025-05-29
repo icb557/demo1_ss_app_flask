@@ -7,7 +7,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app:create_app
+    FLASK_APP=app
 
 # Install system dependencies
 RUN apt-get update \
@@ -36,7 +36,7 @@ EXPOSE 5000
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
 set -e\n\
-export FLASK_APP=app:create_app<\
+export FLASK_APP=app\
 if [ ! -d "/app/migrations" ]; then\n\
   echo "Initializing migrations..."\n\
   flask db init\n\
