@@ -2,54 +2,126 @@ pipeline {
     agent any
     
     environment {
-        COMPOSE_PROJECT_NAME = 'flask-demo'
-        DOCKER_COMPOSE_FILE = 'docker-compose.yml'
+        COMPOSE_PROJECT_NAME = "flask-demo-${env.BUILD_NUMBER}"
+        DOCKER_BUILDKIT = "1"
     }
     
     stages {
-        stage('Checkout') {
+        stage('Cleanup') {
             steps {
-                echo 'Descargando código del repositorio...'
-                checkout scm
+                script {
+                    // Limpiar contenedores previos
+                    sh '''
+                        docker-compose -f docker-compose.yml down --volumes --remove-orphans || true
+                        docker system prune -f || true
+                    '''
+                }
+            }
+        }
+        
+        stage('Verify Files') {
+            steps {
+                sh '''
+                    echo "=== Project Structure ==="
+                    ls -la
+                    echo "=== Checking app.py ==="
+                    if [ -f "app.py" ]; then
+                        echo "app.py exists"
+                        head -10 app.py
+                    else
+                        echo "ERROR: app.py not found!"
+                        exit 1
+                    fi
+                    echo "=== Checking requirements.txt ==="
+                    if [ -f "requirements.txt" ]; then
+                        echo "requirements.txt exists"
+                        cat requirements.txt
+                    else
+                        echo "ERROR: requirements.txt not found!"
+                        exit 1
+                    fi
+                '''
             }
         }
         
         stage('Build') {
             steps {
-                echo 'Construyendo la aplicación Flask con Docker...'
                 script {
-                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down || true'
-                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
+                    sh '''
+                        echo "=== Building Docker images ==="
+                        docker-compose -f docker-compose.yml build --no-cache
+                    '''
                 }
             }
         }
         
-        stage('Deploy') {
+        stage('Test App Import') {
             steps {
-                echo 'Levantando la aplicación Flask...'
                 script {
-                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
-                    sleep 15
-                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} ps'
+                    sh '''
+                        echo "=== Testing Flask app import ==="
+                        docker-compose -f docker-compose.yml run --rm web python -c "
+import sys
+print('Python path:', sys.path)
+try:
+    import app
+    print('✓ App imported successfully')
+    print('✓ Flask app found:', hasattr(app, 'app'))
+except ImportError as e:
+    print('✗ Import error:', e)
+    import os
+    print('Current directory:', os.getcwd())
+    print('Directory contents:', os.listdir('.'))
+    sys.exit(1)
+"
+                    '''
+                }
+            }
+        }
+        
+        stage('Start Services') {
+            steps {
+                script {
+                    sh '''
+                        echo "=== Starting services ==="
+                        docker-compose -f docker-compose.yml up -d
+                        
+                        echo "=== Waiting for services ==="
+                        sleep 30
+                        
+                        echo "=== Checking service status ==="
+                        docker-compose -f docker-compose.yml ps
+                    '''
+                }
+            }
+        }
+        
+        stage('Check Logs') {
+            steps {
+                script {
+                    sh '''
+                        echo "=== Application Logs ==="
+                        docker-compose -f docker-compose.yml logs --tail=50
+                    '''
                 }
             }
         }
         
         stage('Health Check') {
             steps {
-                echo 'Verificando que la aplicación esté funcionando...'
                 script {
                     sh '''
+                        echo "=== Health Check ==="
+                        # Esperar a que la aplicación esté lista
                         for i in {1..10}; do
-                            if curl -f http://localhost:5000 > /dev/null 2>&1; then
-                                echo "✅ Aplicación Flask funcionando correctamente"
-                                exit 0
+                            if curl -f http://localhost:5000 2>/dev/null; then
+                                echo "✓ Application is responding"
+                                break
+                            else
+                                echo "Attempt $i: Application not ready, waiting..."
+                                sleep 10
                             fi
-                            echo "Intento $i/10 - Esperando..."
-                            sleep 5
                         done
-                        echo "❌ La aplicación no responde"
-                        exit 1
                     '''
                 }
             }
@@ -57,12 +129,26 @@ pipeline {
     }
     
     post {
-        success {
-            echo '🎉 Pipeline exitoso - App disponible en http://localhost:5000'
+        always {
+            script {
+                sh '''
+                    echo "=== Final Logs ==="
+                    docker-compose -f docker-compose.yml logs --tail=100
+                    
+                    echo "=== Cleanup ==="
+                    docker-compose -f docker-compose.yml down --volumes
+                '''
+            }
         }
         failure {
-            echo '❌ Pipeline falló'
-            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} logs --tail=50 || true'
+            script {
+                sh '''
+                    echo "=== Debugging Information ==="
+                    docker-compose -f docker-compose.yml ps
+                    docker images
+                    docker-compose -f docker-compose.yml logs
+                '''
+            }
         }
     }
 }
