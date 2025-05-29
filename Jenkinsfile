@@ -17,7 +17,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],  // Cambia según tu rama principal
                     extensions: [[$class: 'CleanBeforeCheckout']],  // Limpiar workspace
-                    userRemoteConfigs: [[url: 'https://github.com/tu-usuario/tu-repo.git']]
+                    userRemoteConfigs: [[url: 'https://github.com/demartinez771/jenkins-CI-CD.git']]
                 ])
             }
         }
