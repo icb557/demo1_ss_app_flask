@@ -3,8 +3,8 @@ pipeline {
     
     environment {
         COMPOSE_PROJECT_NAME = 'life-organizer'
-        DB_USER = credentials('DB_USER')
-        DB_PASSWORD = credentials('DB_PASSWORD')
+        DB_USER = 'postgres'
+        DB_PASSWORD = 'postgres'
         DB_HOST = 'db'
         DB_PORT = '5432'
         DB_NAME = 'life_organizer'
