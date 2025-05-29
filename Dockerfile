@@ -6,7 +6,8 @@ WORKDIR /app
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=app.py
 
 # Install system dependencies
 RUN apt-get update \
@@ -26,11 +27,26 @@ COPY scripts/wait-for-db.sh /usr/local/bin/
 RUN sed -i 's/\r$//' /usr/local/bin/wait-for-db.sh && \
     chmod +x /usr/local/bin/wait-for-db.sh
 
-# Copy project files
+# Copy project files (excluding migrations in development)
 COPY . .
 
 # Expose port
 EXPOSE 5000
 
+# Create entrypoint script
+RUN echo '#!/bin/sh\n\
+set -e\n\
+if [ ! -d "/app/migrations" ]; then\n\
+  echo "Initializing migrations..."\n\
+  flask db init\n\
+  flask db migrate -m "initial migration"\n\
+fi\n\
+echo "Applying migrations..."\n\
+flask db upgrade\n\
+echo "Starting application..."\n\
+exec "$@"' > /usr/local/bin/entrypoint.sh && \
+    chmod +x /usr/local/bin/entrypoint.sh
+
 # Command to run the application
-CMD ["/usr/local/bin/wait-for-db.sh", "db", "flask", "run", "--host=0.0.0.0"] 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/local/bin/wait-for-db.sh", "db", "flask", "run", "--host=0.0.0.0"]
