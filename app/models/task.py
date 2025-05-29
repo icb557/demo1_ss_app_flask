@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app import db
 
 # Constantes para validación
-VALID_CATEGORIES = {'personal', 'work', 'shopping', 'health', 'general'}
+VALID_CATEGORIES = {'personal', 'work', 'shopping', 'health', 'general', 'study'}
 VALID_PRIORITIES = {'low', 'medium', 'high'}
 VALID_STATUSES = {'pending', 'completed', 'cancelled'}
 
