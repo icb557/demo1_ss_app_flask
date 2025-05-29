@@ -1,43 +1,36 @@
-# Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app
+    FLASK_APP=app.py
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         postgresql-client \
         libpq-dev \
         gcc \
-        python3-dev \
-        netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+        python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy and prepare wait-for-db script
 COPY scripts/wait-for-db.sh /usr/local/bin/
 RUN sed -i 's/\r$//' /usr/local/bin/wait-for-db.sh && \
     chmod +x /usr/local/bin/wait-for-db.sh
 
-# Copy project files
 COPY . .
 
-# Expose port
 EXPOSE 5000
 
-# Simple entrypoint script
-RUN echo '#!/bin/sh\nset -e\nexport FLASK_APP=app\n/usr/local/bin/wait-for-db.sh db\nif [ ! -d "/app/migrations" ]; then\n  flask db init\n  flask db migrate -m "initial migration"\nfi\nflask db upgrade\nexec "$@"' > /usr/local/bin/entrypoint.sh && \
+# Entrypoint simplificado sin migraciones
+RUN echo '#!/bin/sh\n\
+set -e\n\
+/wait-for-db.sh db 5432\n\
+exec "$@"' > /usr/local/bin/entrypoint.sh && \
     chmod +x /usr/local/bin/entrypoint.sh
 
-# Set entrypoint and command
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["flask", "run", "--host=0.0.0.0"]
