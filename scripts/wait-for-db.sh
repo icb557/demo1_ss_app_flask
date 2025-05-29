@@ -1,5 +1,5 @@
 #!/bin/bash
-# wait-for-db.sh
+# wait-for-db.sh (versión sin netcat)
 
 set -e
 
@@ -8,7 +8,7 @@ port="$2"
 shift 2
 cmd="$@"
 
-until nc -z "$host" "$port"; do
+until (echo > /dev/tcp/$host/$port) >/dev/null 2>&1; do
   echo "Waiting for $host:$port..."
   sleep 2
 done
