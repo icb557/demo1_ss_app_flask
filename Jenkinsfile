@@ -8,7 +8,7 @@ pipeline {
         DB_HOST = 'db'
         DB_PORT = '5432'
         DB_NAME = 'life_organizer'
-        FLASK_APP = 'app.py'
+        FLASK_APP = 'app'
         FLASK_ENV = 'production'
     }
     
