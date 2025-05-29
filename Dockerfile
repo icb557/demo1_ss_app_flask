@@ -16,6 +16,7 @@ RUN apt-get update \
         libpq-dev \
         gcc \
         python3-dev \
+        netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -27,27 +28,16 @@ COPY scripts/wait-for-db.sh /usr/local/bin/
 RUN sed -i 's/\r$//' /usr/local/bin/wait-for-db.sh && \
     chmod +x /usr/local/bin/wait-for-db.sh
 
-# Copy project files (excluding migrations in development)
+# Copy project files
 COPY . .
 
 # Expose port
 EXPOSE 5000
 
-# Create entrypoint script
-RUN echo '#!/bin/sh\n\
-set -e\n\
-export FLASK_APP=app\
-if [ ! -d "/app/migrations" ]; then\n\
-  echo "Initializing migrations..."\n\
-  flask db init\n\
-  flask db migrate -m "initial migration"\n\
-fi\n\
-echo "Applying migrations..."\n\
-flask db upgrade\n\
-echo "Starting application..."\n\
-exec "$@"' > /usr/local/bin/entrypoint.sh && \
+# Simple entrypoint script
+RUN echo '#!/bin/sh\nset -e\nexport FLASK_APP=app\n/usr/local/bin/wait-for-db.sh db\nif [ ! -d "/app/migrations" ]; then\n  flask db init\n  flask db migrate -m "initial migration"\nfi\nflask db upgrade\nexec "$@"' > /usr/local/bin/entrypoint.sh && \
     chmod +x /usr/local/bin/entrypoint.sh
 
-# Command to run the application
+# Set entrypoint and command
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["/usr/local/bin/wait-for-db.sh", "db", "flask", "run", "--host=0.0.0.0"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
