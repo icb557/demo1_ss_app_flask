@@ -1,75 +1,75 @@
-# App Web: "Life Organizer"
+# Web App: "Life Organizer"
 
-## Descripción general
+## General Description
 
-"Life Organizer" es una app web multifuncional que combina un gestor de tareas con un diario personal. Los usuarios pueden organizar sus actividades diarias y también registrar sus experiencias, como viajes, eventos importantes y otras notas, todo sin necesidad de gestionar archivos o fotos. Todo se maneja de manera sencilla y eficaz a través de texto.
+"Life Organizer" is a multifunctional web app that combines a task manager with a personal diary. Users can organize their daily activities and also record their experiences, such as trips, important events, and other notes, all without the need to manage files or photos. Everything is handled simply and effectively through text.
 
-### Caso de Uso 1: Gestor de Tareas
+### Use Case 1: Task Manager
 
-**Objetivo:** Ayudar a los usuarios a organizar sus actividades diarias con la capacidad de añadir, editar, eliminar y marcar tareas como completadas.
+**Objective:** Help users organize their daily activities with the ability to add, edit, delete, and mark tasks as completed.
 
-**Flujo de trabajo:**
+**Workflow:**
 
-1. Página principal: El usuario ve un panel dividido en dos secciones: Tareas y Diario Personal.
+1. Main page: The user sees a panel divided into two sections: Tasks and Personal Diary.
 
-2. Agregar tarea: El usuario puede agregar nuevas tareas desde la página principal con un título, descripción, fecha de vencimiento y categoría (trabajo, personal, urgente).
+2. Add task: Users can add new tasks from the main page with a title, description, due date, and category (work, personal, urgent).
 
-3. Editar y eliminar: Las tareas pueden ser editadas o eliminadas si es necesario.
+3. Edit and delete: Tasks can be edited or deleted if necessary.
 
-4. Marcar como completada: El usuario puede marcar las tareas completadas, y estas se mueven a una lista separada o se muestran con un estilo diferente (como tachadas).
+4. Mark as completed: Users can mark completed tasks, and these move to a separate list or are displayed with a different style (such as strikethrough).
 
-5. Filtrar tareas: El sistema permite filtrar las tareas por fecha, categoría o estado (pendiente/completada).
+5. Filter tasks: The system allows filtering tasks by date, category, or status (pending/completed).
 
-**Características:**
+**Features:**
 
-- Lista de tareas organizadas.
+- Organized task list.
 
-- Filtros de tareas por categoría y fecha.
+- Task filters by category and date.
 
-- Formularios simples para agregar o editar tareas.
+- Simple forms for adding or editing tasks.
 
-- Autenticación con Flask-Login para gestionar tareas personales.
+- Authentication with Flask-Login for managing personal tasks.
 
-### Caso de Uso 2: Diario Personal (Eventos, Notas, Experiencias)
+### Use Case 2: Personal Diary (Events, Notes, Experiences)
 
-**Objetivo:** Permitir a los usuarios registrar eventos importantes, experiencias de vida (como viajes o celebraciones) y notas personales, todo de manera textual.
+**Objective:** Allow users to record important events, life experiences (such as trips or celebrations), and personal notes, all in text format.
 
-**Flujo de trabajo:**
+**Workflow:**
 
-1. Página principal: El panel de inicio muestra dos secciones: una para Tareas y otra para el Diario Personal.
+1. Main page: The home panel shows two sections: one for Tasks and another for the Personal Diary.
 
-2. Agregar entrada de diario: El usuario puede añadir nuevas entradas de diario con un título, fecha, ubicación (opcional) y una descripción del evento o experiencia. Ejemplo: "Viaje a Barcelona", "Cumpleaños 2025", "Reunión de trabajo importante".
+2. Add diary entry: Users can add new diary entries with a title, date, location (optional), and a description of the event or experience. Example: "Trip to Barcelona", "Birthday 2025", "Important work meeting".
 
-3. Ver detalles: El usuario puede ver un resumen de cada entrada de diario, con la opción de editarla o eliminarla si lo desea.
+3. View details: Users can see a summary of each diary entry, with the option to edit or delete it if desired.
 
-4. Buscar entradas: El sistema permite buscar entradas de diario por fecha, palabras clave o ubicación (si se incluye).
+4. Search entries: The system allows searching diary entries by date, keywords, or location (if included).
 
-5. Relación con tareas: Las entradas de diario pueden estar relacionadas con tareas. Por ejemplo, si el usuario está planeando un viaje, puede crear tareas relacionadas (como "Reservar hotel", "Comprar boletos") que aparecerán junto a su entrada de diario.
+5. Relationship with tasks: Diary entries can be related to tasks. For example, if the user is planning a trip, they can create related tasks (such as "Book hotel", "Buy tickets") that will appear alongside their diary entry.
 
-**Características:**
+**Features:**
 
-- Crear entradas de diario con título, fecha, descripción y ubicación (opcional).
+- Create diary entries with title, date, description, and location (optional).
 
-- Relación de tareas con las entradas del diario para hacer un seguimiento.
+- Relate tasks to diary entries for tracking.
 
-- Vista de resumen de entradas con la opción de editar o eliminar.
+- Summary view of entries with the option to edit or delete.
 
-- Búsqueda de entradas por fecha o palabras clave.
+- Search entries by date or keywords.
 
-- Autenticación con Flask-Login para un seguimiento personalizado.
+- Authentication with Flask-Login for personalized tracking.
 
-### Interacciones entre ambos casos de uso
+### Interactions between both use cases
 
-Sincronización entre Tareas y Diario: Las tareas se pueden vincular a entradas de diario. Por ejemplo, si el usuario está planeando un viaje (entrada de diario), puede agregar tareas relacionadas (reservar vuelos, empacar, etc.) y vincularlas a la entrada correspondiente.
+Task and Diary Synchronization: Tasks can be linked to diary entries. For example, if the user is planning a trip (diary entry), they can add related tasks (book flights, pack, etc.) and link them to the corresponding entry.
 
-Vista integrada: En la vista de Diario Personal, las tareas relacionadas con el evento o experiencia pueden aparecer como recordatorios de lo que el usuario debe hacer en relación con esa entrada.
+Integrated view: In the Personal Diary view, tasks related to the event or experience can appear as reminders of what the user needs to do in relation to that entry.
 
-### Tecnologías
+### Technologies
 
 - Backend: Flask
 
-- Base de datos: PostgreSQL
+- Database: PostgreSQL
 
-- Autenticación: Flask-Login
+- Authentication: Flask-Login
 
-- Frontend: HTML, CSS y JavaScript
+- Frontend: HTML, CSS, and JavaScript
