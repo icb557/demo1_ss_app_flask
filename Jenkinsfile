@@ -87,16 +87,25 @@ pipeline {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    # Verificar si necesitamos inicializar migraciones
-                    if [ ! -d "migrations" ]; then
-                        echo "Inicializando migraciones..."
+                    # Verificar estado actual de migraciones
+                    if [ -d "migrations" ]; then
+                        echo "Directorio migrations existe, verificando estado..."
+                        
+                        # Intentar aplicar migraciones existentes primero
+                        echo "Aplicando migraciones existentes..."
+                        docker-compose run --rm web flask db upgrade || {
+                            echo "⚠️  Error aplicando migraciones existentes, reinicializando..."
+                            rm -rf migrations
+                            docker-compose run --rm web flask db init
+                            docker-compose run --rm web flask db migrate -m "Initial migration"
+                            docker-compose run --rm web flask db upgrade
+                        }
+                    else
+                        echo "Inicializando migraciones por primera vez..."
                         docker-compose run --rm web flask db init
                         docker-compose run --rm web flask db migrate -m "Initial migration"
+                        docker-compose run --rm web flask db upgrade
                     fi
-                    
-                    # Ejecutar migraciones
-                    echo "Aplicando migraciones..."
-                    docker-compose run --rm web flask db upgrade
                     
                     echo "✅ Migraciones completadas"
                 '''
