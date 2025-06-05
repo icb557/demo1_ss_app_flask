@@ -147,13 +147,12 @@ pipeline {
             steps {
                 echo '=== Ejecutando tests funcionales ==='
                 sh '''
-                    # Verificar login manager (si es necesario)
                     echo "Verificando configuración de Flask..."
                     docker-compose exec -T web python -c "
-                        from app import create_app
-                        app = create_app()
-                        with app.app_context():
-                            print('✅ Flask app configurada correctamente')
+                from app import create_app
+                app = create_app()
+                with app.app_context():
+                    print('✅ Flask app configurada correctamente')
                     " || echo "⚠️  Error en configuración de Flask"
                     
                     # Verificar rutas disponibles
