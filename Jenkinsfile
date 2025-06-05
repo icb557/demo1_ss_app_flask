@@ -168,12 +168,13 @@ pipeline {
                 '''
             }
         }
+
         stage('Comentario en Jira') {
             steps {
                 echo '=== Agregando comentario en Jira ==='
-                withCredentials([string(credentialsId: 'jenkins', variable: 'JIRA_TOKEN')]) {
+                withCredentials([string(credentialsId: 'jenkins-jira', variable: 'JIRA_TOKEN')]) {
                     sh '''
-                        curl -s -X POST \Add commentMore actions
+                        curl -s -X POST \
                         -u "deivermartinez1999@gmail.com:${JIRA_TOKEN}" \
                         -H "Content-Type: application/json" \
                         --data '{"body": "✅ Despliegue exitoso desde Jenkins."}' \
