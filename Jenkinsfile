@@ -168,6 +168,20 @@ pipeline {
                 '''
             }
         }
+        stage('Comentario en Jira') {
+            steps {
+                echo '=== Agregando comentario en Jira ==='
+                withCredentials([string(credentialsId: 'jenkins', variable: 'JIRA_TOKEN')]) {
+                    sh '''
+                        curl -s -X POST \Add commentMore actions
+                        -u "deivermartinez1999@gmail.com:${JIRA_TOKEN}" \
+                        -H "Content-Type: application/json" \
+                        --data '{"body": "✅ Despliegue exitoso desde Jenkins."}' \
+                        https://cortesbuitragoisac-1745878529850.atlassian.net/rest/api/2/issue/FAD-35/comment
+                    '''
+                }
+            }
+        }
     }
     
     post {
