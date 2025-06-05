@@ -87,31 +87,16 @@ pipeline {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    echo "Verificando estado del directorio migrations..."
-                    
-                    if [ -d "migrations" ]; then
-                        echo "Directorio migrations existe, verificando integridad..."
-                        
-                        # Verificar si está correctamente inicializado
-                        if [ -f "migrations/alembic.ini" ] && [ -d "migrations/versions" ]; then
-                            echo "✅ Migraciones ya inicializadas correctamente"
-                            
-                            # Solo aplicar migraciones
-                            echo "Aplicando migraciones..."
-                            docker-compose run --rm web flask db upgrade
-                        else
-                            echo "⚠️  Directorio migrations incompleto, reinicializando..."
-                            rm -rf migrations
-                            docker-compose run --rm web flask db init
-                            docker-compose run --rm web flask db migrate -m "Initial migration"
-                            docker-compose run --rm web flask db upgrade
-                        fi
-                    else
-                        echo "Inicializando migraciones por primera vez..."
+                    # Verificar si necesitamos inicializar migraciones
+                    if [ ! -d "migrations" ]; then
+                        echo "Inicializando migraciones..."
                         docker-compose run --rm web flask db init
                         docker-compose run --rm web flask db migrate -m "Initial migration"
-                        docker-compose run --rm web flask db upgrade
                     fi
+                    
+                    # Ejecutar migraciones
+                    echo "Aplicando migraciones..."
+                    docker-compose run --rm web flask db upgrade
                     
                     echo "✅ Migraciones completadas"
                 '''
@@ -163,12 +148,7 @@ pipeline {
                 echo '=== Ejecutando tests funcionales ==='
                 sh '''
                     echo "Verificando configuración de Flask..."
-                    docker-compose exec -T web python -c "
-                from app import create_app
-                app = create_app()
-                with app.app_context():
-                    print('✅ Flask app configurada correctamente')
-                    " || echo "⚠️  Error en configuración de Flask"
+                    docker-compose exec -T web python -c "from app import create_app; app = create_app(); print('✅ Flask app configurada correctamente')" || echo "⚠️  Error en configuración de Flask"
                     
                     # Verificar rutas disponibles
                     echo "Rutas disponibles:"
