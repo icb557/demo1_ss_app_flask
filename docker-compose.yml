@@ -14,8 +14,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./migrations:/app/migrations   # <-- Agrega esta línea
 
   db:
     image: postgres:17.5
