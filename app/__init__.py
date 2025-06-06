@@ -5,6 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from config import Config
+import os
 
 # Initialize SQLAlchemy
 db = SQLAlchemy()
@@ -18,7 +19,9 @@ def create_app(config_class=Config):
 
     # Initialize extensions
     db.init_app(app)
-    migrate.init_app(app, db)
+    
+    migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'migrations')
+    migrate.init_app(app, db, directory=migrations_dir)
     login_manager.init_app(app)
 
     # Configure login manager
