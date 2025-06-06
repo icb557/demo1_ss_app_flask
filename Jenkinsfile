@@ -84,7 +84,7 @@ pipeline {
         }
         
         
-        stage('Deploy Application') {
+        stage('Run Application') {
             steps {
                 echo '=== Desplegando aplicación ==='
                 sh '''
@@ -97,26 +97,6 @@ pipeline {
                     
                     # Verificar que los contenedores están ejecutándose
                     docker-compose ps
-                '''
-            }
-        }
-
-        stage('Run Migrations') {
-            steps {
-                echo '=== Ejecutando migraciones ==='
-                sh '''
-                    # Verificar si necesitamos inicializar migraciones
-                    if [ ! -d "migrations" ]; then
-                        echo "Inicializando migraciones..."
-                        docker-compose run --rm web flask db init
-                        docker-compose run --rm web flask db migrate -m "Initial migration"
-                    fi
-                    
-                    # Ejecutar migraciones
-                    echo "Aplicando migraciones..."
-                    docker-compose run --rm web flask db upgrade
-                    
-                    echo "✅ Migraciones completadas"
                 '''
             }
         }
@@ -137,6 +117,25 @@ pipeline {
                         echo "Ejecutando tests unitarios..."
                         docker-compose exec -T web python -m pytest tests/ -v || echo "⚠️  Algunos tests fallaron"
                     fi
+                '''
+            }
+        }
+
+        stage('Run Migrations') {
+            steps {
+                echo '=== Ejecutando migraciones ==='
+                sh '''
+                    # Verificar si necesitamos inicializar migraciones
+                    if [ ! -d "migrations" ]; then
+                        echo "Inicializando migraciones..."
+                        docker-compose run --rm web flask db migrate -m "Initial migration"
+                    fi
+                    
+                    # Ejecutar migraciones
+                    echo "Aplicando migraciones..."
+                    docker-compose run --rm web flask db upgrade
+                    
+                    echo "✅ Migraciones completadas"
                 '''
             }
         }
