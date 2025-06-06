@@ -187,7 +187,7 @@ pipeline {
         
         
 
-        stage('Comentario en Jira') {
+        stage('Add comment in Jira') {
             steps {
                 echo '=== Agregando comentario en Jira ==='
                 withCredentials([string(credentialsId: 'jenkins-jira', variable: 'JIRA_TOKEN')]) {
@@ -215,6 +215,27 @@ pipeline {
                 
                 echo "Logs recientes:"
                 docker-compose logs --tail=10 || true
+            '''
+            echo '=== Limpiando recursos ==='
+            sh '''
+                # Detener y limpiar contenedores 
+                docker-compose down --volumes --remove-orphans || true
+                
+                # Eliminar directorio de migraciones si existe
+                rm -rf migrations || true
+                
+                # Limpiar imágenes huérfanas
+                docker image prune -f || true
+                
+                # Eliminar volúmenes de PostgreSQL específicamente
+                docker volume ls -q | grep ${COMPOSE_PROJECT_NAME} | xargs -r docker volume rm || true
+                
+                # Verificar que no hay conflictos de puerto
+                netstat -tulpn | grep :${WEB_PORT} || echo "Puerto ${WEB_PORT} disponible"
+                
+                # Verificar que los volúmenes fueron eliminados
+                echo "Volúmenes restantes:"
+                docker volume ls || true
             '''
         }
         
