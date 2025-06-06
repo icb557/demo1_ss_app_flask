@@ -135,15 +135,6 @@ pipeline {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    # Verificar si las migraciones existen dentro del contenedor
-                    if ! docker-compose run --rm web test -d migrations; then
-                        echo "Inicializando migraciones..."
-                        docker-compose run --rm web flask db init
-                        docker-compose run --rm web flask db migrate -m "Initial migration"
-                    else
-                        echo "El directorio de migraciones ya existe"
-                    fi
-                    
                     # Aplicar migraciones pendientes
                     echo "Aplicando migraciones pendientes..."
                     docker-compose run --rm web flask db upgrade
