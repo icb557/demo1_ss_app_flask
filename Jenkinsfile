@@ -111,21 +111,42 @@ pipeline {
             }
         }
 
-        stage('Functional Tests') {
+        stage('Unit Tests') {
             steps {
-                echo '=== Ejecutando tests funcionales ==='
+                echo '=== Ejecutando tests Unitarios ==='
                 sh '''
                     echo "Verificando configuración de Flask..."
                     docker-compose exec -T web python -c "from app import create_app; app = create_app(); print('✅ Flask app configurada correctamente')" || echo "⚠️  Error en configuración de Flask"
                     
-                    # Verificar rutas disponibles
-                    echo "Rutas disponibles:"
-                    docker-compose exec -T web flask routes || echo "⚠️  No se pudieron obtener las rutas"
-                    
                     # Tests adicionales si existen
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
                         echo "Ejecutando tests unitarios..."
-                        docker-compose exec -T web python -m pytest tests/ -v || echo "⚠️  Algunos tests fallaron"
+                        docker-compose exec -T web python -m pytest tests/unit -v || echo "⚠️  Algunos tests unitarios fallaron"
+                    fi
+                '''
+            }
+        }
+        stage('Integration Tests') {
+            steps {
+                echo '=== Ejecutando tests unitarios ==='
+                sh '''
+                    # Tests adicionales si existen
+                    if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+                        echo "Ejecutando tests de integracion..."
+                        docker-compose exec -T web python -m pytest tests/integration -v || echo "⚠️  Algunos tests de integracion fallaron"
+                    fi
+                '''
+            }
+        }
+        
+        stage('e2e Tests') {
+            steps {
+                echo '=== Ejecutando tests e2e ==='
+                sh '''
+                    # Tests adicionales si existen
+                    if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+                        echo "Ejecutando tests de integracion..."
+                        docker-compose exec -T web python -m pytest tests/e2e -v || echo "⚠️  Algunos tests e2e fallaron"
                     fi
                 '''
             }
@@ -133,6 +154,7 @@ pipeline {
 
         stage('Production Database Setup') {
             steps {
+                    
                 echo '=== Ejecutando migraciones ==='
                 sh '''
                     # Verificar el estado actual de las migraciones
@@ -177,15 +199,80 @@ pipeline {
                     # Verificar conectividad de la base de datos
                     echo "Verificando conexión a la base de datos..."
                     docker-compose exec -T db psql -U ${DB_USER} -d ${DB_NAME} -c "SELECT version();" || echo "❌ Error de conexión a DB"
-                    
-                    # Verificar que la aplicación responde
-                    echo "Verificando respuesta de la aplicación..."
-                    timeout 30 sh -c 'until curl -f http://localhost:${WEB_PORT}/health 2>/dev/null || curl -f http://localhost:${WEB_PORT}/ 2>/dev/null; do echo "Esperando respuesta..."; sleep 3; done' || echo "⚠️  Aplicación no responde en puerto ${WEB_PORT}"
+            
+                    echo "Rutas disponibles:"
+                    docker-compose exec -T web flask routes || echo "⚠️  No se pudieron obtener las rutas"
                 '''
             }
         }
         
-        
+        /* stage('Run Ansible Playbook') {
+            steps {
+                echo '=== Ejecutando Ansible Playbook en EC2 ==='
+                
+                // Crear directorio temporal para el playbook y configuración
+                sh 'mkdir -p ansible_temp'
+                
+                // Descargar el playbook
+                sh '''
+                    cd ansible_temp
+                    curl -L https://gist.githubusercontent.com/Juansecod/25ed49d2b3498b73997f3d289e70d95c/raw -o playbook.yml
+                '''
+                
+                withCredentials([
+                    string(credentialsId: 'ec2-instance-ip', variable: 'EC2_IP'),
+                    sshUserPrivateKey(credentialsId: 'aws-ec2-key', keyFileVariable: 'SSH_KEY'),
+                    usernamePassword(credentialsId: 'db-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')
+                ]) {
+                    // Configurar SSH key con permisos correctos
+                    sh '''
+                        cp "$SSH_KEY" ansible_temp/ec2-key.pem
+                        chmod 600 ansible_temp/ec2-key.pem
+                    '''
+                    
+                    // Crear inventory file para EC2
+                    writeFile file: 'ansible_temp/inventory', text: """[ec2]
+${EC2_IP} ansible_user=ubuntu ansible_ssh_private_key_file=ec2-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[ec2:vars]
+app_dir=/opt/flaskapp
+gunicorn_workers=4
+gunicorn_bind=0.0.0.0:8000
+"""
+                    
+                    // Ejecutar playbook usando el plugin de Ansible
+                    ansiblePlaybook(
+                        playbook: 'ansible_temp/playbook.yml',
+                        inventory: 'ansible_temp/inventory',
+                        installation: 'Ansible',
+                        become: true,
+                        colorized: true,
+                        extras: '-vv',
+                    )
+                    
+                    // Verificar el despliegue
+                    sh """
+                        echo "=== Verificando despliegue en EC2 ==="
+                        # Esperar a que la aplicación esté disponible
+                        for i in \$(seq 1 10); do
+                            if curl -s http://${EC2_IP}:8000/; then
+                                echo "✅ Aplicación desplegada correctamente"
+                                exit 0
+                            fi
+                            echo "Esperando que la aplicación esté disponible... Intento \$i"
+                            sleep 5
+                        done
+                        echo "❌ La aplicación no respondió después de 50 segundos"
+                        exit 1
+                    """
+                }
+                
+                // Limpiar
+                sh '''
+                    rm -rf ansible_temp
+                '''
+            }
+        } */
 
         stage('Add comment in Jira') {
             steps {
