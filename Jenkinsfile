@@ -83,6 +83,7 @@ pipeline {
             }
         }
         
+        
         stage('Deploy Application') {
             steps {
                 echo '=== Desplegando aplicación ==='
@@ -96,6 +97,46 @@ pipeline {
                     
                     # Verificar que los contenedores están ejecutándose
                     docker-compose ps
+                '''
+            }
+        }
+
+        stage('Run Migrations') {
+            steps {
+                echo '=== Ejecutando migraciones ==='
+                sh '''
+                    # Verificar si necesitamos inicializar migraciones
+                    if [ ! -d "migrations" ]; then
+                        echo "Inicializando migraciones..."
+                        docker-compose run --rm web flask db init
+                        docker-compose run --rm web flask db migrate -m "Initial migration"
+                    fi
+                    
+                    # Ejecutar migraciones
+                    echo "Aplicando migraciones..."
+                    docker-compose run --rm web flask db upgrade
+                    
+                    echo "✅ Migraciones completadas"
+                '''
+            }
+        }
+
+        stage('Functional Tests') {
+            steps {
+                echo '=== Ejecutando tests funcionales ==='
+                sh '''
+                    echo "Verificando configuración de Flask..."
+                    docker-compose exec -T web python -c "from app import create_app; app = create_app(); print('✅ Flask app configurada correctamente')" || echo "⚠️  Error en configuración de Flask"
+                    
+                    # Verificar rutas disponibles
+                    echo "Rutas disponibles:"
+                    docker-compose exec -T web flask routes || echo "⚠️  No se pudieron obtener las rutas"
+                    
+                    # Tests adicionales si existen
+                    if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+                        echo "Ejecutando tests unitarios..."
+                        docker-compose exec -T web python -m pytest tests/ -v || echo "⚠️  Algunos tests fallaron"
+                    fi
                 '''
             }
         }
@@ -123,25 +164,7 @@ pipeline {
             }
         }
         
-        stage('Functional Tests') {
-            steps {
-                echo '=== Ejecutando tests funcionales ==='
-                sh '''
-                    echo "Verificando configuración de Flask..."
-                    docker-compose exec -T web python -c "from app import create_app; app = create_app(); print('✅ Flask app configurada correctamente')" || echo "⚠️  Error en configuración de Flask"
-                    
-                    # Verificar rutas disponibles
-                    echo "Rutas disponibles:"
-                    docker-compose exec -T web flask routes || echo "⚠️  No se pudieron obtener las rutas"
-                    
-                    # Tests adicionales si existen
-                    if [ -f "pytest.ini" ] || [ -d "tests" ]; then
-                        echo "Ejecutando tests unitarios..."
-                        docker-compose exec -T web python -m pytest tests/ -v || echo "⚠️  Algunos tests fallaron"
-                    fi
-                '''
-            }
-        }
+        
 
         stage('Comentario en Jira') {
             steps {

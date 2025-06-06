@@ -13,7 +13,9 @@ services:
       - DB_HOST=db
     depends_on:
       db:
-        condition: service_healthy  # <-- Agrega esta línea
+        condition: service_healthy
+    volumes:
+      - ./migrations:/app/migrations   # <-- Agrega esta línea
 
   db:
     image: postgres:17.5
