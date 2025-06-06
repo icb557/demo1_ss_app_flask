@@ -145,6 +145,9 @@ pipeline {
                         docker-compose exec -T web flask db init --directory migrations
                         docker-compose exec -T web flask db migrate -m "Initial migration" --directory migrations
                     fi
+
+                    echo "Generando migración..."
+                    docker-compose exec -T web flask db migrate -m "Auto-generated migration" --directory migrations
                     
                     # Aplicar migraciones
                     echo "Aplicando migraciones en la base de datos de producción..."
