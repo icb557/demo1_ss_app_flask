@@ -135,13 +135,6 @@ pipeline {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    # Reiniciar el contenedor web para limpiar cualquier estado de los tests
-                    docker-compose restart web
-                    
-                    # Esperar a que el contenedor esté listo
-                    echo "Esperando a que el contenedor web esté listo..."
-                    timeout 30 sh -c 'until docker-compose exec -T web python -c "import sys; sys.exit(0)" 2>/dev/null; do echo "Esperando..."; sleep 2; done'
-                    
                     # Verificar el estado actual de las migraciones
                     echo "Verificando estado de migraciones..."
                     docker-compose exec -T web flask db current --directory migrations || true
