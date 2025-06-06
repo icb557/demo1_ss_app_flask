@@ -27,11 +27,21 @@ pipeline {
                     # Detener y limpiar contenedores previos
                     docker-compose down --volumes --remove-orphans || true
                     
-                    # Limpiar imágenes huérfanas (opcional)
+                    # Eliminar directorio de migraciones si existe
+                    rm -rf migrations || true
+                    
+                    # Limpiar imágenes huérfanas
                     docker image prune -f || true
+                    
+                    # Eliminar volúmenes de PostgreSQL específicamente
+                    docker volume ls -q | grep ${COMPOSE_PROJECT_NAME} | xargs -r docker volume rm || true
                     
                     # Verificar que no hay conflictos de puerto
                     netstat -tulpn | grep :${WEB_PORT} || echo "Puerto ${WEB_PORT} disponible"
+                    
+                    # Verificar que los volúmenes fueron eliminados
+                    echo "Volúmenes restantes:"
+                    docker volume ls || true
                 '''
             }
         }
@@ -125,14 +135,18 @@ pipeline {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    # Verificar si necesitamos inicializar migraciones
+                    # Verificar si el directorio de migraciones existe
                     if [ ! -d "migrations" ]; then
                         echo "Inicializando migraciones..."
+                        docker-compose run --rm web flask db init
                         docker-compose run --rm web flask db migrate -m "Initial migration"
+                    else
+                        echo "Generando nuevas migraciones si hay cambios..."
+                        docker-compose run --rm web flask db migrate -m "Auto-generated migration"
                     fi
                     
-                    # Ejecutar migraciones
-                    echo "Aplicando migraciones..."
+                    # Aplicar migraciones pendientes
+                    echo "Aplicando migraciones pendientes..."
                     docker-compose run --rm web flask db upgrade
                     
                     echo "✅ Migraciones completadas"
