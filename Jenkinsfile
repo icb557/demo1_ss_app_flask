@@ -103,7 +103,7 @@ pipeline {
                     
                     # Esperar a que la aplicación esté lista
                     echo "Esperando a que la aplicación esté lista..."
-                    sleep 20
+                    timeout 60 sh -c 'until docker-compose exec -T web python -c "import sys; sys.exit(0)" 2>/dev/null; do echo "Esperando que el contenedor web esté listo..."; sleep 2; done'
                     
                     # Verificar que los contenedores están ejecutándose
                     docker-compose ps
@@ -131,15 +131,37 @@ pipeline {
             }
         }
 
-        stage('Run Migrations') {
+        stage('Production Database Setup') {
             steps {
                 echo '=== Ejecutando migraciones ==='
                 sh '''
-                    # Aplicar migraciones pendientes
-                    echo "Aplicando migraciones pendientes..."
-                    docker-compose run --rm web flask db upgrade
+                    # Reiniciar el contenedor web para limpiar cualquier estado de los tests
+                    docker-compose restart web
                     
-                    echo "✅ Migraciones completadas"
+                    # Esperar a que el contenedor esté listo
+                    echo "Esperando a que el contenedor web esté listo..."
+                    timeout 30 sh -c 'until docker-compose exec -T web python -c "import sys; sys.exit(0)" 2>/dev/null; do echo "Esperando..."; sleep 2; done'
+                    
+                    # Verificar el estado actual de las migraciones
+                    echo "Verificando estado de migraciones..."
+                    docker-compose exec -T web flask db current --directory migrations || true
+                    
+                    # Inicializar migraciones si no existen
+                    if ! docker-compose exec -T web test -d migrations; then
+                        echo "Inicializando migraciones..."
+                        docker-compose exec -T web flask db init --directory migrations
+                        docker-compose exec -T web flask db migrate -m "Initial migration" --directory migrations
+                    fi
+                    
+                    # Aplicar migraciones
+                    echo "Aplicando migraciones en la base de datos de producción..."
+                    docker-compose exec -T web flask db upgrade --directory migrations
+                    
+                    # Verificar que las migraciones se aplicaron correctamente
+                    echo "Verificando estado final de migraciones..."
+                    docker-compose exec -T web flask db current --directory migrations
+                    
+                    echo "✅ Base de datos de producción configurada"
                 '''
             }
         }
