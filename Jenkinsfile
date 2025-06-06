@@ -83,26 +83,6 @@ pipeline {
             }
         }
         
-        stage('Run Migrations') {
-            steps {
-                echo '=== Ejecutando migraciones ==='
-                sh '''
-                    # Verificar si necesitamos inicializar migraciones
-                    if [ ! -d "migrations" ]; then
-                        echo "Inicializando migraciones..."
-                        docker-compose run --rm web flask db init
-                        docker-compose run --rm web flask db migrate -m "Initial migration"
-                    fi
-                    
-                    # Ejecutar migraciones
-                    echo "Aplicando migraciones..."
-                    docker-compose run --rm web flask db upgrade
-                    
-                    echo "✅ Migraciones completadas"
-                '''
-            }
-        }
-        
         stage('Deploy Application') {
             steps {
                 echo '=== Desplegando aplicación ==='

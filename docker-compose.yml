@@ -13,9 +13,7 @@ services:
       - DB_HOST=db
     depends_on:
       db:
-        condition: service_healthy
-    volumes:
-      - ./migrations:/app/migrations   # <-- Agrega esta línea
+        condition: service_healthy  # <-- Agrega esta línea
 
   db:
     image: postgres:17.5
@@ -29,9 +27,4 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 10
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
+      retries: 10S
