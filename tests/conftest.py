@@ -2,12 +2,12 @@
 import pytest
 from app import create_app, db
 from app.models import User
-from config import IntegrationTestingConfig
+from config import TestingConfig
 
 @pytest.fixture
 def app():
     """Create application for the tests."""
-    app = create_app(IntegrationTestingConfig)
+    app = create_app(TestingConfig)
     return app
 
 @pytest.fixture
