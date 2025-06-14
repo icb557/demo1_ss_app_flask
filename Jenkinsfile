@@ -9,6 +9,11 @@ pipeline {
         FLASK_ENV = 'testing'
         PYTHONPATH = "${WORKSPACE}"
         VENV_DIR = "venv"
+        INFISICAL_TOKEN = credentials('infisical-token-id')
+        INFISICAL_PROJECT_ID = '61d5b470-4cf8-4db4-8e18-0f73705f6d21'
+        DB_USER = 'postgres'
+        DB_PASSWORD = 'postgres'
+        DB_PORT = '5432'
     }
     
     stages {
@@ -16,6 +21,101 @@ pipeline {
             steps {
                 echo '=== Obteniendo código del repositorio ==='
                 checkout scm
+            }
+        }
+        
+        stage('Setup Infisical CLI') {
+            steps {
+                echo '=== Configurando CLI de Infisical ==='
+                sh '''
+                    # Instalar Infisical CLI solo si no está presente
+                    if ! command -v infisical &> /dev/null; then
+                        curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash
+                        sudo apt-get update && sudo apt-get install -y infisical
+                    fi
+                '''
+            }
+        }
+        
+        stage('Ensure Secrets Exist') {
+            steps {
+                echo '=== Verificando secrets en Infisical ==='
+                script {
+                    // Verificar y crear secrets si no existen
+                    def secretKeyExists = sh(
+                        script: """
+                            infisical get SECRET_KEY \
+                              --token=${INFISICAL_TOKEN} \
+                              --env=prod \
+                              --projectId=${INFISICAL_PROJECT_ID} >/dev/null 2>&1 && echo "true" || echo "false"
+                        """,
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (secretKeyExists == "false") {
+                        echo "🔑 Generando nuevos secrets..."
+                        
+                        // Generar SECRET_KEY segura
+                        def generatedKey = sh(
+                            script: 'openssl rand -hex 32',
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Crear secrets en Infisical
+                        sh """
+                            infisical secrets set SECRET_KEY="${generatedKey}" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+
+                            infisical secrets set DB_USER="${DB_USER}" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+
+                            infisical secrets set DB_PASSWORD="${DB_PASSWORD}" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+
+                            infisical secrets set DB_PORT="${DB_PORT}" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+
+                            infisical secrets set DB_NAME="life_organizer" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+
+                            infisical secrets set WEB_PORT="8000" \
+                            --env=prod \
+                            --projectId=${INFISICAL_PROJECT_ID} \
+                            --token=${INFISICAL_TOKEN}
+                        """
+                    } else {
+                        echo "🔑 SECRET_KEY ya existe en Infisical"
+                    }
+                }
+            }
+        }
+        
+        stage('Load Environment') {
+            steps {
+                echo '=== Cargando variables de entorno ==='
+                sh '''
+                    # Obtener secrets y crear .env
+                    infisical export \
+                      --token=$INFISICAL_TOKEN \
+                      --env=prod \
+                      --projectId=$INFISICAL_PROJECT_ID \
+                      --format=dotenv > .env
+                    
+                    # Agregar variables no sensibles
+                    echo "FLASK_APP=${FLASK_APP}" >> .env
+                    echo "FLASK_ENV=${FLASK_ENV}" >> .env
+                    echo "PYTHONPATH=${PYTHONPATH}" >> .env
+                '''
             }
         }
         
