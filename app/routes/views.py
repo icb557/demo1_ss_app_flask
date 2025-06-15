@@ -8,6 +8,8 @@ from app.services.travel_service import TravelService
 from app.models.activity import Activity
 from app import db
 
+NO_AUTHORIZED = 'No autorizado'
+
 @main_bp.route('/')
 def index():
     """Index route."""
@@ -115,7 +117,7 @@ def get_task(task_id):
     try:
         task = task_service.get_task_by_id(task_id)
         if task.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         return jsonify({
             'id': task.id,
@@ -138,7 +140,7 @@ def update_task(task_id):
         # Primero obtener la tarea existente
         task = task_service.get_task_by_id(task_id)
         if task.user != current_user:
-            flash('No autorizado', 'danger')
+            flash(NO_AUTHORIZED, 'danger')
             return redirect(url_for('main.tasks'))
         
         # Construir el diccionario de actualización solo con los campos que cambiaron
@@ -200,7 +202,7 @@ def complete_task(task_id):
     try:
         task = task_service.get_task_by_id(task_id)
         if task.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         task_service.mark_task_completed(task)
         return jsonify({'message': 'Tarea completada exitosamente'})
@@ -216,7 +218,7 @@ def delete_task(task_id):
     try:
         task = task_service.get_task_by_id(task_id)
         if task.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         task_service.delete_task(task)
         return jsonify({'message': 'Tarea eliminada exitosamente'})
@@ -285,7 +287,7 @@ def travel_detail(diary_id):
     try:
         diary = travel_service.get_diary_by_id(diary_id)
         if diary.user != current_user:
-            flash('No autorizado', 'danger')
+            flash(NO_AUTHORIZED, 'danger')
             return redirect(url_for('main.travel'))
         
         return render_template(
@@ -305,7 +307,7 @@ def get_travel(diary_id):
     try:
         diary = travel_service.get_diary_by_id(diary_id)
         if diary.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         return jsonify({
             'id': diary.id,
@@ -327,7 +329,7 @@ def update_travel(diary_id):
     try:
         diary = travel_service.get_diary_by_id(diary_id)
         if diary.user != current_user:
-            flash('No autorizado', 'danger')
+            flash(NO_AUTHORIZED, 'danger')
             return redirect(url_for('main.travel'))
         
         # Get form data
@@ -368,7 +370,7 @@ def delete_travel(diary_id):
     try:
         diary = travel_service.get_diary_by_id(diary_id)
         if diary.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         travel_service.delete_diary(diary)
         return jsonify({'message': 'Viaje eliminado exitosamente'})
@@ -384,7 +386,7 @@ def create_activity(diary_id):
     try:
         diary = travel_service.get_diary_by_id(diary_id)
         if diary.user != current_user:
-            flash('No autorizado', 'danger')
+            flash(NO_AUTHORIZED, 'danger')
             return redirect(url_for('main.travel'))
         
         # Get form data
@@ -430,7 +432,7 @@ def get_activity(activity_id):
     try:
         activity = travel_service.get_activity_by_id(activity_id)
         if activity.diary.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         return jsonify({
             'id': activity.id,
@@ -455,7 +457,7 @@ def update_activity(activity_id):
     try:
         activity = travel_service.get_activity_by_id(activity_id)
         if activity.diary.user != current_user:
-            flash('No autorizado', 'danger')
+            flash(NO_AUTHORIZED, 'danger')
             return redirect(url_for('main.travel'))
         
         # Get form data
@@ -522,7 +524,7 @@ def delete_activity(activity_id):
             return jsonify({'error': 'Actividad no encontrada'}), 404
             
         if activity.diary.user != current_user:
-            return jsonify({'error': 'No autorizado'}), 403
+            return jsonify({'error': NO_AUTHORIZED}), 403
         
         db.session.delete(activity)
         db.session.commit()
