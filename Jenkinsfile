@@ -19,16 +19,16 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo '=== Obteniendo código del repositorio ==='
+                echo '=== Getting source code from repository ==='
                 checkout scm
             }
         }
         
         stage('Setup Infisical CLI') {
             steps {
-                echo '=== Configurando CLI de Infisical ==='
+                echo '=== Setting CLI of Infisical ==='
                 sh '''
-                    # Instalar Infisical CLI solo si no está presente
+                    # Install Infisical CLI if not installed
                     if ! command -v infisical &> /dev/null; then
                         curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash
                         sudo apt-get update && sudo apt-get install -y infisical
@@ -39,9 +39,8 @@ pipeline {
         
         stage('Ensure Secrets Exist') {
             steps {
-                echo '=== Verificando secrets en Infisical ==='
+                echo '=== Verifying secrets in Infisical ==='
                 script {
-                    // Verificar y crear secrets si no existen
                     def secretKeyExists = sh(
                         script: """
                             infisical get SECRET_KEY \
@@ -53,15 +52,13 @@ pipeline {
                     ).trim()
                     
                     if (secretKeyExists == "false") {
-                        echo "🔑 Generando nuevos secrets..."
+                        echo "🔑 Generating new secrets..."
                         
-                        // Generar SECRET_KEY segura
                         def generatedKey = sh(
                             script: 'openssl rand -hex 32',
                             returnStdout: true
                         ).trim()
                         
-                        // Crear secrets en Infisical
                         sh """
                             infisical secrets set SECRET_KEY="${generatedKey}" \
                             --env=prod \
@@ -94,7 +91,7 @@ pipeline {
                             --token=${INFISICAL_TOKEN}
                         """
                     } else {
-                        echo "🔑 SECRET_KEY ya existe en Infisical"
+                        echo "🔑 SECRET_KEY already exists in Infisical"
                     }
                 }
             }
@@ -102,16 +99,16 @@ pipeline {
         
         stage('Load Environment') {
             steps {
-                echo '=== Cargando variables de entorno ==='
+                echo '=== Loading environment variables ==='
                 sh '''
-                    # Obtener secrets y crear .env
+                    # Get secrets and create .env
                     infisical export \
                       --token=$INFISICAL_TOKEN \
                       --env=prod \
                       --projectId=$INFISICAL_PROJECT_ID \
                       --format=dotenv > .env
                     
-                    # Agregar variables no sensibles
+                    # Add non-sensitive variables
                     echo "FLASK_APP=${FLASK_APP}" >> .env
                     echo "FLASK_ENV=${FLASK_ENV}" >> .env
                     echo "PYTHONPATH=${PYTHONPATH}" >> .env
@@ -121,18 +118,18 @@ pipeline {
         
         stage('Setup Python') {
             steps {
-                echo '=== Instalando Python y dependencias ==='
+                echo '=== Installing Python and dependencies ==='
                 sh '''
-                    # Actualizar repositorios
+                    # Update repositories
                     sudo apt-get update
                     
-                    # Instalar Python y pip
+                    # Install Python-env
                     sudo apt-get install -y python3.11-venv
                     
-                    # Crear entorno virtual
+                    # Create virtual environment
                     python3 -m venv ${VENV_DIR}
 
-                    # Activar el entorno virtual e instalar dependencias
+                    # Activate virtual environment and install dependencies
                     . ${VENV_DIR}/bin/activate
                     which python3
                     pip install --break-system-packages -r requirements.txt
@@ -144,12 +141,12 @@ pipeline {
         
         stage('Unit Tests') {
             steps {
-                echo '=== Ejecutando tests Unitarios ==='
+                echo '=== Run unit tests ==='
                 sh '''
                     # Tests adicionales si existen
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
-                        echo "Ejecutando tests unitarios..."
-                        python3 -m pytest tests/unit -v || echo "⚠️  Algunos tests unitarios fallaron"
+                        echo "Running unit tests..."
+                        python3 -m pytest tests/unit -v
                     fi
                 '''
             }
@@ -157,12 +154,11 @@ pipeline {
         
         stage('Integration Tests') {
             steps {
-                echo '=== Ejecutando tests de integración ==='
+                echo '=== Run Integration Tests ==='
                 sh '''
-                    # Tests adicionales si existen
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
-                        echo "Ejecutando tests de integracion..."
-                        python3 -m pytest tests/integration -v || echo "⚠️  Algunos tests de integracion fallaron"
+                        echo "Running Integration test..."
+                        python3 -m pytest tests/integration -v
                     fi
                 '''
             }
@@ -170,12 +166,11 @@ pipeline {
         
         stage('e2e Tests') {
             steps {
-                echo '=== Ejecutando tests e2e ==='
+                echo '=== Run e2e test ==='
                 sh '''
-                    # Tests adicionales si existen
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
-                        echo "Ejecutando tests e2e..."
-                        python3 -m pytest tests/e2e -v || echo "⚠️  Algunos tests e2e fallaron"
+                        echo "Running e2e tests..."
+                        python3 -m pytest tests/e2e -v
                     fi
                 '''
             }
@@ -183,32 +178,32 @@ pipeline {
         
         stage('Lint') {
             steps {
-                echo '=== Ejecutando linting ==='
+                echo '=== Run linting ==='
                 sh '''
-                    flake8 app/ tests/ || echo "⚠️  Algunos problemas de estilo encontrados"
+                    flake8 app/ tests/ || echo "⚠️ Some linting issues found"
                 '''
             }
         }
         
         stage('Security Scan') {
             steps {
-                echo '=== Ejecutando análisis de seguridad ==='
+                echo '=== Running security scan ==='
                 sh '''
-                    # Verificar dependencias con safety
-                    safety check || echo "⚠️  Se encontraron vulnerabilidades en las dependencias"
+                    # Verify dependencies with safety
+                    safety check || echo "⚠️ Some security issues found"
                     
-                    # Verificar código con bandit
-                    bandit -r app/ || echo "⚠️  Se encontraron problemas de seguridad en el código"
+                    # Verify code with bandit
+                    bandit -r app/ || echo "⚠️ Some security issues found"
                 '''
             }
         }
         
-        stage('Health Check') {
+        stage('Check routes') {
             steps {
-                echo '=== Verificando estado de la aplicación ==='
+                echo '=== Verify routes ==='
                 sh '''
                     echo "Rutas disponibles:"
-                    flask routes || echo "⚠️  No se pudieron obtener las rutas"
+                    flask routes 
                 '''
             }
         }
@@ -251,17 +246,17 @@ pipeline {
     
     post {
         always {
-            echo '=== Limpiando entorno ==='
+            echo '=== Cleaning environment ==='
             sh 'rm -rf ${VENV_DIR}'
             sh 'which python3'
         }
         success {
             discordSend description: "Jenkins Pipeline Build ${env.BUILD_DISPLAY_NAME} succesfull", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: 'https://discord.com/api/webhooks/1383560954637189302/Ge7_KdL1a2YBpVfZ4v39mNnY0MTX05MwwxcIdd1mWIrAYJhvn3hqEfKy3nY5dct7Ggrb'
-            echo '✅ Pipeline completado exitosamente'
+            echo '✅ Pipeline finished successfully'
         }
         failure {
             discordSend description: "Jenkins Pipeline Build ${env.BUILD_DISPLAY_NAME} failed", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: 'https://discord.com/api/webhooks/1383560954637189302/Ge7_KdL1a2YBpVfZ4v39mNnY0MTX05MwwxcIdd1mWIrAYJhvn3hqEfKy3nY5dct7Ggrb'
-            echo '❌ Pipeline falló'
+            echo '❌ Pipeline failed'
         }
     }
 }
