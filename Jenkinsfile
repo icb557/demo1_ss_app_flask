@@ -120,41 +120,6 @@ pipeline {
                 }
             }
         }
-        
-        /* stage('Add comment in Jira') {
-            steps {
-                echo '=== Agregando comentario en Jira ==='
-                script {
-                    def commitMessage = env.GIT_COMMIT_MESSAGE
-                    def jiraComment = """✅ Pipeline completado exitosamente
-🔄 Último commit: ${env.GIT_COMMIT}
-👤 Autor: ${env.GIT_AUTHOR_NAME}
-📝 Mensaje: ${commitMessage}""".replaceAll('\n', '\\\\n').replace('"', '\\"')
-
-                    echo "Comentario para Jira: ${jiraComment}"
-
-                    withCredentials([
-                        string(credentialsId: 'jenkins-jira', variable: 'JIRA_TOKEN'),
-                        string(credentialsId: 'jenkins-jira-user', variable: 'JIRA_USER')
-                    ]) {
-                        def commentJson = """{ "body": "${jiraComment}" }"""
-                        def jiraUrl = "https://cortesbuitragoisac-1745878529850.atlassian.net/rest/api/2/issue/FAD-54/comment"
-
-                        echo "Usuario: ${JIRA_USER}"
-                        echo "Token: ${JIRA_TOKEN}"
-
-                        sh """
-                            curl -s -X POST \\
-                            -u "${JIRA_USER}:${JIRA_TOKEN}" \\
-                            -H "Content-Type: application/json" \\
-                            --data '${commentJson}' \\
-                            ${jiraUrl}
-                        """
-                    }
-                }
-                
-            }
-        } */
     }
     
     post {
