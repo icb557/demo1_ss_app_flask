@@ -3,17 +3,10 @@ pipeline {
     
     environment {
         // Variables de entorno
-        DB_NAME = 'life_organizer'
-        WEB_PORT = '5000'
-        FLASK_APP = 'app/__init__.py'
-        FLASK_ENV = 'testing'
         PYTHONPATH = "${WORKSPACE}"
         VENV_DIR = "venv"
         INFISICAL_TOKEN = credentials('infisical-token-id')
         INFISICAL_PROJECT_ID = '61d5b470-4cf8-4db4-8e18-0f73705f6d21'
-        DB_USER = 'postgres'
-        DB_PASSWORD = 'postgres'
-        DB_PORT = '5432'
         DISCORD_WEBHOOK= credentials('discord-webhook')
     }
     
@@ -25,108 +18,10 @@ pipeline {
             }
         }
         
-        stage('Setup Infisical CLI') {
-            steps {
-                echo '=== Setting CLI of Infisical ==='
-                sh '''
-                    # Install Infisical CLI if not installed
-                    if ! command -v infisical &> /dev/null; then
-                        curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash
-                        sudo apt-get update && sudo apt-get install -y infisical
-                    fi
-                '''
-            }
-        }
-        
-        stage('Ensure Secrets Exist') {
-            steps {
-                echo '=== Verifying secrets in Infisical ==='
-                script {
-                    def secretKeyExists = sh(
-                        script: """
-                            infisical get SECRET_KEY \
-                              --token=${INFISICAL_TOKEN} \
-                              --env=prod \
-                              --projectId=${INFISICAL_PROJECT_ID} >/dev/null 2>&1 && echo "true" || echo "false"
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    if (secretKeyExists == "false") {
-                        echo "🔑 Generating new secrets..."
-                        
-                        def generatedKey = sh(
-                            script: 'openssl rand -hex 32',
-                            returnStdout: true
-                        ).trim()
-                        
-                        sh """
-                            infisical secrets set SECRET_KEY="${generatedKey}" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-
-                            infisical secrets set DB_USER="${DB_USER}" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-
-                            infisical secrets set DB_PASSWORD="${DB_PASSWORD}" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-
-                            infisical secrets set DB_PORT="${DB_PORT}" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-
-                            infisical secrets set DB_NAME="life_organizer" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-
-                            infisical secrets set WEB_PORT="8000" \
-                            --env=prod \
-                            --projectId=${INFISICAL_PROJECT_ID} \
-                            --token=${INFISICAL_TOKEN}
-                        """
-                    } else {
-                        echo "🔑 SECRET_KEY already exists in Infisical"
-                    }
-                }
-            }
-        }
-        
-        stage('Load Environment') {
-            steps {
-                echo '=== Loading environment variables ==='
-                sh '''
-                    # Get secrets and create .env
-                    infisical export \
-                      --token=$INFISICAL_TOKEN \
-                      --env=prod \
-                      --projectId=$INFISICAL_PROJECT_ID \
-                      --format=dotenv > .env
-                    
-                    # Add non-sensitive variables
-                    echo "FLASK_APP=${FLASK_APP}" >> .env
-                    echo "FLASK_ENV=${FLASK_ENV}" >> .env
-                    echo "PYTHONPATH=${PYTHONPATH}" >> .env
-                '''
-            }
-        }
-        
         stage('Setup Python') {
             steps {
                 echo '=== Installing Python and dependencies ==='
                 sh '''
-                    # Update repositories
-                    sudo apt-get update
-                    
-                    # Install Python-env
-                    sudo apt-get install -y python3.11-venv
-                    
                     # Create virtual environment
                     python3 -m venv ${VENV_DIR}
 
@@ -144,6 +39,7 @@ pipeline {
             steps {
                 echo '=== Run unit tests ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     # Tests adicionales si existen
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
                         echo "Running unit tests..."
@@ -157,6 +53,7 @@ pipeline {
             steps {
                 echo '=== Run Integration Tests ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
                         echo "Running Integration test..."
                         python3 -m pytest tests/integration -v
@@ -169,6 +66,7 @@ pipeline {
             steps {
                 echo '=== Run e2e test ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     if [ -f "pytest.ini" ] || [ -d "tests" ]; then
                         echo "Running e2e tests..."
                         python3 -m pytest tests/e2e -v
@@ -181,6 +79,7 @@ pipeline {
             steps {
                 echo '=== Run linting ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     flake8 app/ tests/ || echo "⚠️ Some linting issues found"
                 '''
             }
@@ -190,6 +89,7 @@ pipeline {
             steps {
                 echo '=== Running security scan ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     # Verify dependencies with safety
                     safety check || echo "⚠️ Some security issues found"
                     
@@ -203,6 +103,7 @@ pipeline {
             steps {
                 echo '=== Verify routes ==='
                 sh '''
+                    . ${VENV_DIR}/bin/activate
                     echo "Rutas disponibles:"
                     flask routes 
                 '''
