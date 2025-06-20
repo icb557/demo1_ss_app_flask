@@ -8,6 +8,7 @@ pipeline {
         INFISICAL_TOKEN = credentials('infisical-token-id')
         INFISICAL_PROJECT_ID = '61d5b470-4cf8-4db4-8e18-0f73705f6d21'
         DISCORD_WEBHOOK= credentials('discord-webhook')
+        ANSIBLE_CONFIG = "${WORKSPACE}/ansible.cfg"
     }
     
     stages {
@@ -109,41 +110,16 @@ pipeline {
                 '''
             }
         }
-        
-        /* stage('Add comment in Jira') {
+
+        stage('Run Ansible Playbook') {
             steps {
-                echo '=== Agregando comentario en Jira ==='
-                script {
-                    def commitMessage = env.GIT_COMMIT_MESSAGE
-                    def jiraComment = """✅ Pipeline completado exitosamente
-🔄 Último commit: ${env.GIT_COMMIT}
-👤 Autor: ${env.GIT_AUTHOR_NAME}
-📝 Mensaje: ${commitMessage}""".replaceAll('\n', '\\\\n').replace('"', '\\"')
-
-                    echo "Comentario para Jira: ${jiraComment}"
-
-                    withCredentials([
-                        string(credentialsId: 'jenkins-jira', variable: 'JIRA_TOKEN'),
-                        string(credentialsId: 'jenkins-jira-user', variable: 'JIRA_USER')
-                    ]) {
-                        def commentJson = """{ "body": "${jiraComment}" }"""
-                        def jiraUrl = "https://cortesbuitragoisac-1745878529850.atlassian.net/rest/api/2/issue/FAD-54/comment"
-
-                        echo "Usuario: ${JIRA_USER}"
-                        echo "Token: ${JIRA_TOKEN}"
-
-                        sh """
-                            curl -s -X POST \\
-                            -u "${JIRA_USER}:${JIRA_TOKEN}" \\
-                            -H "Content-Type: application/json" \\
-                            --data '${commentJson}' \\
-                            ${jiraUrl}
-                        """
-                    }
+                dir('demo1_ss_infra') {    
+                    sh 'echo "[ssh_connection]\nssh_args = -o ControlMaster=no" | tee ansible.cfg'
+                    sh 'echo $ANSIBLE_CONFIG'
+                    ansiblePlaybook credentialsId: 'ssh-key-appserver', disableHostKeyChecking: true, installation: 'Ansible', inventory: '/var/jenkins_home/shared/hosts.ini', playbook: 'ansible/playbooks/infra_playbook.yml', vaultTmpPath: ''
                 }
-                
             }
-        } */
+        }
     }
     
     post {
