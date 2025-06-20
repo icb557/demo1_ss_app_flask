@@ -8,6 +8,7 @@ pipeline {
         INFISICAL_TOKEN = credentials('infisical-token-id')
         INFISICAL_PROJECT_ID = '61d5b470-4cf8-4db4-8e18-0f73705f6d21'
         DISCORD_WEBHOOK= credentials('discord-webhook')
+        ANSIBLE_CONFIG = "${WORKSPACE}/ansible.cfg"
     }
     
     stages {
@@ -107,6 +108,16 @@ pipeline {
                     echo "Rutas disponibles:"
                     flask routes 
                 '''
+            }
+        }
+
+        stage('Run Ansible Playbook') {
+            steps {
+                dir('demo1_ss_infra') {    
+                    sh 'echo "[ssh_connection]\nssh_args = -o ControlMaster=no" | tee ansible.cfg'
+                    sh 'echo $ANSIBLE_CONFIG'
+                    ansiblePlaybook credentialsId: 'ssh-key-appserver', disableHostKeyChecking: true, installation: 'Ansible', inventory: '/var/jenkins_home/shared/hosts.ini', playbook: 'ansible/playbooks/infra_playbook.yml', vaultTmpPath: ''
+                }
             }
         }
         
